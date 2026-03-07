@@ -1,58 +1,102 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Home, Users, Calendar, DollarSign, MessageSquare, FileText,
   Lock, Key, Bell, Send, Edit2, Plus, Check, Phone, Eye, EyeOff,
-  Wrench, X, ChevronRight
+  Wrench, X, ChevronRight, Search, Download, Filter, AlertTriangle,
+  AlertCircle, Info, Car, Plane, Stethoscope, MapPin, Clock,
+  CreditCard, Printer, ChevronDown, Star, ToggleLeft, ToggleRight,
+  History, Tag, Percent, Package, User, Home as HomeIcon
 } from "lucide-react";
 
-const STORAGE_VERSION = "v1";
+// ── Storage ───────────────────────────────────────────────────────────────────
+const V = "v2";
 const SK = {
-  clients:  `ks_${STORAGE_VERSION}_clients`,
-  jobs:     `ks_${STORAGE_VERSION}_jobs`,
-  invoices: `ks_${STORAGE_VERSION}_invoices`,
-  messages: `ks_${STORAGE_VERSION}_messages`,
-  notes:    `ks_${STORAGE_VERSION}_notes`,
+  clients:  `ks_${V}_clients`,
+  jobs:     `ks_${V}_jobs`,
+  invoices: `ks_${V}_invoices`,
+  payments: `ks_${V}_payments`,
+  messages: `ks_${V}_messages`,
+  notes:    `ks_${V}_notes`,
+  services: `ks_${V}_services`,
 };
+const load = (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-function load(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
-}
-function save(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const genAcct = () => String(Math.floor(10000 + Math.random() * 90000));
+const today = () => new Date().toISOString().split("T")[0];
+const fmt$ = n => `$${Number(n||0).toFixed(2)}`;
+const fmtDate = d => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "";
 
+// ── Default services ──────────────────────────────────────────────────────────
+const DEFAULT_SERVICES = [
+  { id:1, name:"House Walkthrough",      fee:45,  category:"watching" },
+  { id:2, name:"Extended House Watch",   fee:75,  category:"watching" },
+  { id:3, name:"Airport Transportation", fee:65,  category:"transport" },
+  { id:4, name:"Medical Transportation", fee:55,  category:"transport" },
+  { id:5, name:"General Transportation", fee:50,  category:"transport" },
+  { id:6, name:"AC Filter Replacement",  fee:35,  category:"project" },
+  { id:7, name:"Mail Collection",        fee:15,  category:"project" },
+  { id:8, name:"Pool Check",             fee:25,  category:"project" },
+  { id:9, name:"Storm Preparation",      fee:85,  category:"project" },
+  { id:10,name:"Other / Custom",         fee:0,   category:"other" },
+];
+
+// ── Seed data ─────────────────────────────────────────────────────────────────
 const SEED = {
   clients: [
-    { id: 1, name: "Margaret & Harold Whitfield", email: "whitfields@email.com", phone: "561-442-8801", address: "14 Pelican Cove Dr, Boca Raton FL", notes: "Up north May-Sept. Prefers texts.", season: "May-September", status: "active", codes: { garage: "4892*", alarm: "7714#", gate: "1028" }, emergency: "Daughter Karen: 561-330-9204" },
-    { id: 2, name: "Dr. Robert & Anne Lassiter", email: "rlassiter@gmail.com", phone: "954-881-2200", address: "88 Coral Ridge Blvd, Fort Lauderdale FL", notes: "Dr. Lassiter uses a walker. Anne needs airport rides frequently.", season: "June-August", status: "active", codes: { garage: "3301*", alarm: "9982#", gate: "" }, emergency: "Son Brett: 954-771-0045" },
-    { id: 3, name: "Frank Delgado", email: "fdelgado55@yahoo.com", phone: "786-554-6610", address: "22 Sawgrass Ln, Coral Springs FL", notes: "Winter resident only. Has a 24ft boat in side yard.", season: "November-March", status: "inactive", codes: { garage: "6640*", alarm: "2255#", gate: "5501" }, emergency: "Wife Maria: 786-554-6611" },
+    { id:1, acct:"47382", firstName:"Margaret", lastName:"Whitfield", secondaryName:"Harold Whitfield", email:"whitfields@email.com", phone:"561-442-8801",
+      street:"14 Pelican Cove Dr", city:"Boca Raton", state:"FL", zip:"33428",
+      notes:"Prefers texts. Very detail-oriented. Check back porch screen door.",
+      seasonStart:"2026-05-01", seasonEnd:"2026-09-30", status:"active", isHome:false,
+      monitoringFee:150,
+      codes:{ garage:"4892*", alarm:"7714#", gate:"1028" },
+      emergency:{ name:"Karen Whitfield", phone:"561-330-9204", email:"karen.w@gmail.com", relationship:"Daughter" }
+    },
+    { id:2, acct:"82951", firstName:"Robert", lastName:"Lassiter", secondaryName:"Anne Lassiter", email:"rlassiter@gmail.com", phone:"954-881-2200",
+      street:"88 Coral Ridge Blvd", city:"Fort Lauderdale", state:"FL", zip:"33308",
+      notes:"Dr. Lassiter uses a walker. Anne needs airport rides frequently. Good tippers.",
+      seasonStart:"2026-06-01", seasonEnd:"2026-08-31", status:"active", isHome:false,
+      monitoringFee:175,
+      codes:{ garage:"3301*", alarm:"9982#", gate:"" },
+      emergency:{ name:"Brett Lassiter", phone:"954-771-0045", email:"brett.l@gmail.com", relationship:"Son" }
+    },
+    { id:3, acct:"63017", firstName:"Frank", lastName:"Delgado", secondaryName:"", email:"fdelgado55@yahoo.com", phone:"786-554-6610",
+      street:"22 Sawgrass Ln", city:"Coral Springs", state:"FL", zip:"33065",
+      notes:"Winter resident only. Has a 24ft boat in side yard — check monthly.",
+      seasonStart:"2026-11-01", seasonEnd:"2027-03-31", status:"inactive", isHome:false,
+      monitoringFee:125,
+      codes:{ garage:"6640*", alarm:"2255#", gate:"5501" },
+      emergency:{ name:"Maria Delgado", phone:"786-554-6611", email:"maria.d@yahoo.com", relationship:"Spouse" }
+    },
   ],
   jobs: [
-    { id: 1, clientId: 1, type: "watching",  title: "Weekly Walkthrough",          date: "2026-03-10", time: "09:00", assignedTo: "Mike",   status: "pending",  notes: "Check sprinklers, pool level, collect mail." },
-    { id: 2, clientId: 2, type: "transport", title: "Airport Ride - MIA",           date: "2026-03-07", time: "06:30", assignedTo: "Owner",  status: "pending",  notes: "Departing AA1045. Bill $65." },
-    { id: 3, clientId: 1, type: "project",   title: "AC Filter Replacement",        date: "2026-03-05", time: "11:00", assignedTo: "Carlos", status: "complete", notes: "All 4 filters replaced." },
-    { id: 4, clientId: 2, type: "transport", title: "Doctor Appt - Baptist Health", date: "2026-03-12", time: "14:00", assignedTo: "Owner",  status: "pending",  notes: "Both Anne and Dr. Lassiter." },
-    { id: 5, clientId: 3, type: "watching",  title: "Boat Cover Check",             date: "2026-03-15", time: "10:00", assignedTo: "Carlos", status: "pending",  notes: "Check cover after last week wind." },
+    { id:1, clientId:1, type:"watching",  title:"Weekly Walkthrough",          date:"2026-03-10", time:"09:00", assignedTo:"Mike",   status:"pending",  notes:"Check sprinklers, pool level, collect mail.", transport:null },
+    { id:2, clientId:2, type:"transport", title:"Airport Ride – MIA",           date:"2026-03-07", time:"06:30", assignedTo:"Owner",  status:"pending",  notes:"Departing AA1045. Bill $65.", transport:{ subtype:"flight", airport:"MIA", airline:"American", flightNum:"AA1045", direction:"departure", pickupLocation:"88 Coral Ridge Blvd", dropLocation:"Miami International Airport", pickupTime:"06:30" } },
+    { id:3, clientId:1, type:"watching",  title:"AC Filter Replacement",        date:"2026-03-05", time:"11:00", assignedTo:"Carlos", status:"complete", notes:"All 4 filters replaced.", transport:null },
+    { id:4, clientId:2, type:"transport", title:"Doctor Appt – Baptist Health", date:"2026-03-12", time:"14:00", assignedTo:"Owner",  status:"pending",  notes:"Both Anne and Dr. Lassiter.", transport:{ subtype:"medical", pickupLocation:"88 Coral Ridge Blvd", dropLocation:"Baptist Health Boca Raton", pickupTime:"14:00" } },
+    { id:5, clientId:3, type:"watching",  title:"Boat Cover Check",             date:"2026-03-15", time:"10:00", assignedTo:"Carlos", status:"pending",  notes:"Check cover integrity.", transport:null },
   ],
   invoices: [
-    { id: 1, clientId: 1, amount: 320, description: "March house watching (4 visits) + AC filters", date: "2026-03-01", due: "2026-03-15", status: "pending" },
-    { id: 2, clientId: 2, amount: 185, description: "Feb airport rides x2 + weekly walkthrough",    date: "2026-02-01", due: "2026-02-15", status: "overdue" },
-    { id: 3, clientId: 3, amount: 240, description: "Nov-Dec boat checks (2) + walkthroughs (3)",   date: "2026-01-01", due: "2026-01-15", status: "overdue" },
+    { id:1, clientId:1, services:[{serviceId:1,name:"House Walkthrough",qty:4,fee:45,custom:""},{serviceId:6,name:"AC Filter Replacement",qty:1,fee:35,custom:""}], supplies:0, discount:0, date:"2026-03-01", due:"2026-03-15", status:"pending", notes:"March services" },
+    { id:2, clientId:2, services:[{serviceId:3,name:"Airport Transportation",qty:2,fee:65,custom:""},{serviceId:1,name:"House Walkthrough",qty:1,fee:45,custom:""}], supplies:0, discount:0, date:"2026-02-01", due:"2026-02-15", status:"overdue", notes:"February services" },
+    { id:3, clientId:3, services:[{serviceId:8,name:"Pool Check",qty:2,fee:25,custom:""},{serviceId:1,name:"House Walkthrough",qty:3,fee:45,custom:""}], supplies:0, discount:0, date:"2026-01-01", due:"2026-01-15", status:"overdue", notes:"Nov-Dec services" },
   ],
+  payments: [],
   messages: [
-    { id: 1, clientId: 1, from: "Margaret Whitfield", text: "Hi! Just checking - will someone be by Tuesday?", time: "Mar 5, 10:22am", fromClient: true },
-    { id: 2, clientId: 1, from: "You", text: "Hi Margaret! Yes, Mike will do the full walkthrough Tuesday at 9am.", time: "Mar 5, 10:45am", fromClient: false },
-    { id: 3, clientId: 2, from: "Anne Lassiter", text: "Just a reminder about Thursday morning - early flight, 6:30am pickup please!", time: "Mar 5, 3:10pm", fromClient: true },
-    { id: 4, clientId: 2, from: "You", text: "All set Anne! I'll be there at 6:15. Safe travels!", time: "Mar 5, 3:22pm", fromClient: false },
+    { id:1, clientId:1, from:"Margaret Whitfield", text:"Hi! Just checking — will someone be by Tuesday?", time:"Mar 5, 10:22am", fromClient:true },
+    { id:2, clientId:1, from:"You", text:"Hi Margaret! Yes, Mike will do the full walkthrough Tuesday at 9am.", time:"Mar 5, 10:45am", fromClient:false },
+    { id:3, clientId:2, from:"Anne Lassiter", text:"Just a reminder about Thursday morning — early flight, 6:30am pickup!", time:"Mar 5, 3:10pm", fromClient:true },
+    { id:4, clientId:2, from:"You", text:"All set Anne! I'll be there at 6:15. Safe travels!", time:"Mar 5, 3:22pm", fromClient:false },
   ],
   notes: [
-    { id: 1, clientId: 1, title: "Pool pump failure - Mar 2025", text: "Found pool pump not running on routine check. Called ABC Pool Service. Repaired within 24 hrs.", date: "2025-03-18" },
-    { id: 2, clientId: 2, title: "Front & side door rekeyed", text: "Locksmith rekeyed front and side entry per client request. New keys left in lockbox.", date: "2025-11-02" },
-    { id: 3, clientId: 3, title: "Boat cover damaged by storm", text: "Found starboard side of boat cover torn after tropical storm. Frank authorized replacement up to $150.", date: "2025-09-14" },
+    { id:1, clientId:1, title:"Pool pump failure", text:"Found pool pump not running. Called ABC Pool Service. Repaired within 24 hrs.", date:"2025-03-18", priority:"medium" },
+    { id:2, clientId:2, title:"Front door rekeyed", text:"Locksmith rekeyed front and side entry per client request.", date:"2025-11-02", priority:"low" },
+    { id:3, clientId:3, title:"Boat cover storm damage", text:"Starboard side torn after tropical storm. Frank authorized replacement up to $150.", date:"2025-09-14", priority:"high" },
   ],
 };
 
+// ── Badge styles ──────────────────────────────────────────────────────────────
 const BADGE = {
   active:    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   inactive:  "bg-gray-100 text-gray-500 ring-1 ring-gray-200",
@@ -62,66 +106,89 @@ const BADGE = {
   overdue:   "bg-red-50 text-red-700 ring-1 ring-red-200",
   watching:  "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
   transport: "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
-  project:   "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+  other:     "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+  home:      "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  away:      "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
 };
-
-const Badge = ({ type }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${BADGE[type] || BADGE.inactive}`}>
-    {type}
+const Badge = ({ type, label }) => (
+  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${BADGE[type]||BADGE.inactive}`}>
+    {label||type}
   </span>
 );
 
+const PRIORITY_STYLES = {
+  high:   { badge:"bg-red-50 text-red-700 ring-1 ring-red-200",    icon:<AlertTriangle size={12} className="text-red-500"/>,    label:"Critical" },
+  medium: { badge:"bg-amber-50 text-amber-700 ring-1 ring-amber-200", icon:<AlertCircle size={12} className="text-amber-500"/>,   label:"Medium"   },
+  low:    { badge:"bg-blue-50 text-blue-600 ring-1 ring-blue-200",  icon:<Info size={12} className="text-blue-400"/>,            label:"Low"      },
+};
+
+// ── Invoice total calc ────────────────────────────────────────────────────────
+const calcInvTotal = inv => {
+  const sub = (inv.services||[]).reduce((s,sv) => s + (sv.fee * (sv.qty||1)), 0);
+  const supplies = Number(inv.supplies||0);
+  const disc = sub * (Number(inv.discount||0)/100);
+  return sub + supplies - disc;
+};
+
+// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [clients,   setClients]   = useState(() => load(SK.clients,  SEED.clients));
   const [jobs,      setJobs]      = useState(() => load(SK.jobs,     SEED.jobs));
   const [invoices,  setInvoices]  = useState(() => load(SK.invoices, SEED.invoices));
+  const [payments,  setPayments]  = useState(() => load(SK.payments, SEED.payments));
   const [messages,  setMessages]  = useState(() => load(SK.messages, SEED.messages));
   const [notes,     setNotes]     = useState(() => load(SK.notes,    SEED.notes));
+  const [services,  setServices]  = useState(() => load(SK.services, DEFAULT_SERVICES));
   const [modal,     setModal]     = useState(null);
   const [selClient, setSelClient] = useState(null);
   const [draft,     setDraft]     = useState("");
+  const [clientTab, setClientTab] = useState(null); // for client detail
 
   useEffect(() => save(SK.clients,  clients),  [clients]);
   useEffect(() => save(SK.jobs,     jobs),     [jobs]);
   useEffect(() => save(SK.invoices, invoices), [invoices]);
+  useEffect(() => save(SK.payments, payments), [payments]);
   useEffect(() => save(SK.messages, messages), [messages]);
   useEffect(() => save(SK.notes,    notes),    [notes]);
+  useEffect(() => save(SK.services, services), [services]);
 
-  const gc      = id => clients.find(c => c.id === id);
+  const gc = id => clients.find(c => c.id === id);
   const overdue = invoices.filter(i => i.status === "overdue");
 
-  const saveClient = d => { d.id ? setClients(p => p.map(c => c.id===d.id ? d : c)) : setClients(p => [...p, { ...d, id: Date.now(), codes:{garage:"",alarm:"",gate:""} }]); setModal(null); };
-  const saveJob    = d => { d.id ? setJobs(p => p.map(j => j.id===d.id ? d : j))    : setJobs(p => [...p, { ...d, id: Date.now(), status:"pending" }]);                       setModal(null); };
-  const saveInv    = d => { d.id ? setInvoices(p => p.map(i => i.id===d.id ? d : i)): setInvoices(p => [...p, { ...d, id: Date.now(), status:"pending" }]);                    setModal(null); };
-  const saveNote   = d => { d.id ? setNotes(p => p.map(n => n.id===d.id ? d : n))   : setNotes(p => [...p, { ...d, id: Date.now() }]);                                        setModal(null); };
+  const saveClient  = d => { d.id ? setClients(p=>p.map(c=>c.id===d.id?d:c)) : setClients(p=>[...p,{...d,id:Date.now(),acct:genAcct()}]); setModal(null); };
+  const saveJob     = d => { d.id ? setJobs(p=>p.map(j=>j.id===d.id?d:j))    : setJobs(p=>[...p,{...d,id:Date.now(),status:"pending"}]);  setModal(null); };
+  const saveInv     = d => { d.id ? setInvoices(p=>p.map(i=>i.id===d.id?d:i)): setInvoices(p=>[...p,{...d,id:Date.now(),status:"pending"}]); setModal(null); };
+  const saveNote    = d => { d.id ? setNotes(p=>p.map(n=>n.id===d.id?d:n))   : setNotes(p=>[...p,{...d,id:Date.now()}]);                  setModal(null); };
+  const saveService = d => { d.id ? setServices(p=>p.map(s=>s.id===d.id?d:s)): setServices(p=>[...p,{...d,id:Date.now()}]);               setModal(null); };
 
-  const sendMsg = () => {
-    if (!draft.trim() || !selClient) return;
-    setMessages(p => [...p, { id: Date.now(), clientId: selClient.id, from: "You", text: draft, time: "Just now", fromClient: false }]);
-    setDraft("");
+  const sendMsg  = () => { if(!draft.trim()||!selClient) return; setMessages(p=>[...p,{id:Date.now(),clientId:selClient.id,from:"You",text:draft,time:"Just now",fromClient:false}]); setDraft(""); };
+  const markPaid = (invId, method, checkNum) => {
+    setInvoices(p=>p.map(i=>i.id===invId?{...i,status:"paid"}:i));
+    setPayments(p=>[...p,{id:Date.now(),invoiceId:invId,method,checkNum,date:today(),amount:calcInvTotal(invoices.find(i=>i.id===invId))}]);
+    setModal(null);
   };
-  const markPaid = id => setInvoices(p => p.map(i => i.id===id ? {...i, status:"paid"} : i));
-  const doneJob  = id => setJobs(p => p.map(j => j.id===id ? {...j, status:"complete"} : j));
+  const doneJob  = id => setJobs(p=>p.map(j=>j.id===id?{...j,status:"complete"}:j));
   const goMsg    = c  => { setSelClient(c); setTab("messages"); };
+  const toggleHome = id => setClients(p=>p.map(c=>c.id===id?{...c,isHome:!c.isHome}:c));
 
   const nav = [
-    { id:"dashboard", label:"Dashboard",    Icon: Home },
-    { id:"clients",   label:"Clients",      Icon: Users },
-    { id:"schedule",  label:"Schedule",     Icon: Calendar },
-    { id:"billing",   label:"Billing",      Icon: DollarSign },
-    { id:"messages",  label:"Messages",     Icon: MessageSquare },
-    { id:"notes",     label:"Notes",        Icon: FileText },
-    { id:"access",    label:"Access Codes", Icon: Lock },
+    { id:"dashboard", label:"Dashboard",    Icon:Home },
+    { id:"clients",   label:"Clients",      Icon:Users },
+    { id:"schedule",  label:"Schedule",     Icon:Calendar },
+    { id:"billing",   label:"Billing",      Icon:DollarSign },
+    { id:"messages",  label:"Messages",     Icon:MessageSquare },
+    { id:"notes",     label:"Notes",        Icon:FileText },
+    { id:"access",    label:"Access Codes", Icon:Lock },
+    { id:"services",  label:"Services",     Icon:Tag },
   ];
 
   return (
     <div style={{fontFamily:"'DM Sans',sans-serif"}} className="flex flex-col min-h-screen bg-gray-50 text-gray-900">
+      {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between px-6 h-14 bg-white border-b border-gray-200 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Key size={15} className="text-white" />
-          </div>
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center"><Key size={15} className="text-white"/></div>
           <div>
             <div className="font-bold text-gray-900 text-sm leading-none tracking-tight">KeyStone</div>
             <div className="text-[10px] text-blue-600 tracking-widest font-medium">HOUSE SERVICES</div>
@@ -129,33 +196,32 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3">
           {overdue.length > 0 && (
-            <button onClick={() => setTab("billing")} className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-full px-3 py-1 text-xs text-red-600 font-medium hover:bg-red-100 transition-colors">
-              <Bell size={11} />{overdue.length} overdue invoice{overdue.length > 1 ? "s" : ""}
+            <button onClick={()=>setTab("billing")} className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-full px-3 py-1 text-xs text-red-600 font-medium hover:bg-red-100 transition-colors">
+              <Bell size={11}/>{overdue.length} overdue invoice{overdue.length>1?"s":""}
             </button>
           )}
-          <span className="text-xs text-gray-400 hidden sm:block">
-            {new Date().toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric", year:"numeric" })}
-          </span>
+          <span className="text-xs text-gray-400 hidden sm:block">{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</span>
         </div>
       </header>
 
       <div className="flex flex-1">
+        {/* Sidebar */}
         <nav className="w-56 flex-shrink-0 bg-white border-r border-gray-200 px-3 py-5 sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden md:block">
           <p className="text-[10px] font-semibold tracking-widest text-gray-400 px-2 mb-2">MENU</p>
-          {nav.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setTab(id)}
+          {nav.map(({id,label,Icon})=>(
+            <button key={id} onClick={()=>setTab(id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-all text-left
-                ${tab === id ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`}>
-              <Icon size={15} />{label}
+                ${tab===id?"bg-blue-600 text-white shadow-sm":"text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`}>
+              <Icon size={15}/>{label}
             </button>
           ))}
-          <hr className="border-gray-100 my-4" />
+          <hr className="border-gray-100 my-4"/>
           <p className="text-[10px] font-semibold tracking-widest text-gray-400 px-2 mb-3">OVERVIEW</p>
           {[
-            { label:"Active Clients", val: clients.filter(c=>c.status==="active").length, color:"text-blue-600" },
-            { label:"Open Jobs",      val: jobs.filter(j=>j.status==="pending").length,   color:"text-blue-600" },
-            { label:"Overdue $",      val: `$${overdue.reduce((s,i)=>s+i.amount,0)}`,     color:"text-red-500"  },
-          ].map((s,i) => (
+            {label:"Active Clients",val:clients.filter(c=>c.status==="active").length,color:"text-blue-600"},
+            {label:"Open Jobs",     val:jobs.filter(j=>j.status==="pending").length,  color:"text-blue-600"},
+            {label:"Overdue $",     val:`$${overdue.reduce((s,i)=>s+calcInvTotal(i),0).toFixed(0)}`, color:"text-red-500"},
+          ].map((s,i)=>(
             <div key={i} className="px-2 mb-3">
               <div className="text-[11px] text-gray-400 font-medium">{s.label}</div>
               <div className={`text-2xl font-bold ${s.color}`}>{s.val}</div>
@@ -163,106 +229,134 @@ export default function App() {
           ))}
         </nav>
 
+        {/* Main */}
         <main className="flex-1 p-6 overflow-y-auto min-w-0" key={tab}>
-          {tab==="dashboard" && <Dashboard clients={clients} jobs={jobs} invoices={invoices} gc={gc} setTab={setTab} doneJob={doneJob} />}
-          {tab==="clients"   && <Clients   clients={clients} setModal={setModal} goMsg={goMsg} />}
-          {tab==="schedule"  && <Schedule  jobs={jobs} gc={gc} setModal={setModal} doneJob={doneJob} />}
-          {tab==="billing"   && <Billing   invoices={invoices} gc={gc} setModal={setModal} markPaid={markPaid} />}
-          {tab==="messages"  && <Messages  clients={clients} sel={selClient} setSel={setSelClient} allMsgs={messages} draft={draft} setDraft={setDraft} sendMsg={sendMsg} />}
-          {tab==="notes"     && <Notes     notes={notes} gc={gc} setModal={setModal} />}
-          {tab==="access"    && <Access    clients={clients} />}
+          {tab==="dashboard" && <Dashboard clients={clients} jobs={jobs} invoices={invoices} gc={gc} setTab={setTab} doneJob={doneJob} toggleHome={toggleHome}/>}
+          {tab==="clients"   && <Clients   clients={clients} jobs={jobs} invoices={invoices} notes={notes} payments={payments} setModal={setModal} goMsg={goMsg} toggleHome={toggleHome} setTab={setTab} setSel={setSelClient} clientTab={clientTab} setClientTab={setClientTab}/>}
+          {tab==="schedule"  && <Schedule  jobs={jobs} gc={gc} setModal={setModal} doneJob={doneJob}/>}
+          {tab==="billing"   && <Billing   invoices={invoices} payments={payments} gc={gc} setModal={setModal} markPaid={markPaid} services={services}/>}
+          {tab==="messages"  && <Messages  clients={clients} sel={selClient} setSel={setSelClient} allMsgs={messages} draft={draft} setDraft={setDraft} sendMsg={sendMsg}/>}
+          {tab==="notes"     && <Notes     notes={notes} gc={gc} setModal={setModal} clients={clients}/>}
+          {tab==="access"    && <Access    clients={clients}/>}
+          {tab==="services"  && <Services  services={services} setModal={setModal}/>}
         </main>
       </div>
 
+      {/* Mobile nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-50">
-        {nav.slice(0,5).map(({ id, label, Icon }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors ${tab===id ? "text-blue-600" : "text-gray-400"}`}>
-            <Icon size={19} />{label}
+        {nav.slice(0,5).map(({id,label,Icon})=>(
+          <button key={id} onClick={()=>setTab(id)}
+            className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors ${tab===id?"text-blue-600":"text-gray-400"}`}>
+            <Icon size={19}/>{label}
           </button>
         ))}
       </nav>
 
-      {modal?.type==="client"  && <ClientModal data={modal.data} clients={clients} onSave={saveClient} onClose={()=>setModal(null)} />}
-      {modal?.type==="job"     && <JobModal    data={modal.data} clients={clients} onSave={saveJob}    onClose={()=>setModal(null)} />}
-      {modal?.type==="invoice" && <InvModal    data={modal.data} clients={clients} onSave={saveInv}    onClose={()=>setModal(null)} />}
-      {modal?.type==="note"    && <NoteModal   data={modal.data} clients={clients} onSave={saveNote}   onClose={()=>setModal(null)} />}
+      {/* Modals */}
+      {modal?.type==="client"  && <ClientModal  data={modal.data} onSave={saveClient}  onClose={()=>setModal(null)}/>}
+      {modal?.type==="job"     && <JobModal     data={modal.data} clients={clients} onSave={saveJob} onClose={()=>setModal(null)}/>}
+      {modal?.type==="invoice" && <InvModal     data={modal.data} clients={clients} services={services} onSave={saveInv} onClose={()=>setModal(null)}/>}
+      {modal?.type==="note"    && <NoteModal    data={modal.data} clients={clients} onSave={saveNote}  onClose={()=>setModal(null)}/>}
+      {modal?.type==="payment" && <PaymentModal data={modal.data} onSave={markPaid}  onClose={()=>setModal(null)}/>}
+      {modal?.type==="service" && <ServiceModal data={modal.data} onSave={saveService} onClose={()=>setModal(null)}/>}
+      {modal?.type==="invoice_view" && <InvoiceViewModal data={modal.data} gc={gc} payments={payments} onClose={()=>setModal(null)} setModal={setModal}/>}
+      {modal?.type==="statement" && <StatementModal data={modal.data} gc={gc} invoices={invoices} payments={payments} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
 
-const Card = ({ children, className="" }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 ${className}`}>{children}</div>
+// ── Shared UI ─────────────────────────────────────────────────────────────────
+const Card = ({children,className=""}) => <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 ${className}`}>{children}</div>;
+const Row  = ({children,className=""}) => <div className={`flex items-center gap-3 px-4 py-3.5 rounded-xl mb-2 bg-white border border-gray-200 shadow-sm hover:border-blue-200 hover:shadow-md transition-all ${className}`}>{children}</div>;
+const Empty = ({msg="Nothing here yet"}) => <div className="text-center py-12 text-gray-400 text-sm">{msg}</div>;
+
+const SectionHead = ({title,sub,onAdd,addLabel="Add",extra}) => (
+  <div className="flex justify-between items-end mb-6">
+    <div><h1 className="text-2xl font-bold text-gray-900">{title}</h1>{sub&&<p className="text-sm text-gray-500 mt-0.5">{sub}</p>}</div>
+    <div className="flex gap-2 items-center">
+      {extra}
+      {onAdd&&<button onClick={onAdd} className="flex items-center gap-1.5 bg-blue-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"><Plus size={14}/>{addLabel}</button>}
+    </div>
+  </div>
 );
 
-const StatCard = ({ label, value, Icon, color, bg }) => (
+const StatCard = ({label,value,Icon,color,bg}) => (
   <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
     <div className="flex justify-between items-start mb-3">
       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
-      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}><Icon size={14} className={color} /></div>
+      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}><Icon size={14} className={color}/></div>
     </div>
     <div className={`text-3xl font-bold ${color}`}>{value}</div>
   </div>
 );
 
-const Row = ({ children, className="" }) => (
-  <div className={`flex items-center gap-3 px-4 py-3.5 rounded-xl mb-2 bg-white border border-gray-200 shadow-sm hover:border-blue-200 hover:shadow-md transition-all ${className}`}>{children}</div>
-);
-
-const SectionHead = ({ title, sub, onAdd, addLabel="Add" }) => (
-  <div className="flex justify-between items-end mb-6">
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-      {sub && <p className="text-sm text-gray-500 mt-0.5">{sub}</p>}
-    </div>
-    {onAdd && (
-      <button onClick={onAdd} className="flex items-center gap-1.5 bg-blue-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
-        <Plus size={14} />{addLabel}
-      </button>
-    )}
+const SearchBar = ({value,onChange,placeholder="Search..."}) => (
+  <div className="relative mb-4">
+    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+    <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-gray-200 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder-gray-400"/>
   </div>
 );
 
-const Empty = ({ msg="Nothing here yet" }) => (
-  <div className="text-center py-12 text-gray-400 text-sm">{msg}</div>
-);
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome}) {
+  const td = today();
+  const todayJobs = jobs.filter(j=>j.date===td&&j.status==="pending");
+  const upcoming  = jobs.filter(j=>j.date>td&&j.status==="pending").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const overdue   = invoices.filter(i=>i.status==="overdue");
+  const outstanding = invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+calcInvTotal(i),0);
 
-function Dashboard({ clients, jobs, invoices, gc, setTab, doneJob }) {
-  const today     = new Date().toISOString().split("T")[0];
-  const todayJobs = jobs.filter(j => j.date===today && j.status==="pending");
-  const upcoming  = jobs.filter(j => j.date>today && j.status==="pending").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
-  const overdue   = invoices.filter(i => i.status==="overdue");
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Good morning!</h1>
         <p className="text-gray-500 text-sm mt-1">Here's what's happening across your properties today.</p>
       </div>
-      {overdue.length > 0 && (
-        <div onClick={() => setTab("billing")} className="cursor-pointer flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 mb-6 hover:bg-red-100 transition-colors">
-          <span>Warning: <strong>{overdue.length} overdue invoice{overdue.length>1?"s":""}</strong> totaling <strong>${overdue.reduce((s,i)=>s+i.amount,0)}</strong></span>
-          <ChevronRight size={15} />
+      {overdue.length>0&&(
+        <div onClick={()=>setTab("billing")} className="cursor-pointer flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 mb-6 hover:bg-red-100 transition-colors">
+          <span><strong>{overdue.length} overdue invoice{overdue.length>1?"s":""}</strong> totaling <strong>${overdue.reduce((s,i)=>s+calcInvTotal(i),0).toFixed(0)}</strong></span>
+          <ChevronRight size={15}/>
         </div>
       )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Active Clients" value={clients.filter(c=>c.status==="active").length} Icon={Users}       color="text-blue-600"    bg="bg-blue-50" />
-        <StatCard label="Open Jobs"      value={jobs.filter(j=>j.status==="pending").length}   Icon={Calendar}    color="text-violet-600"  bg="bg-violet-50" />
-        <StatCard label="Outstanding"    value={`$${invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.amount,0)}`} Icon={DollarSign} color="text-red-500" bg="bg-red-50" />
-        <StatCard label="Jobs Completed" value={jobs.filter(j=>j.status==="complete").length}  Icon={Check}       color="text-emerald-600" bg="bg-emerald-50" />
+        <StatCard label="Active Clients" value={clients.filter(c=>c.status==="active").length} Icon={Users}       color="text-blue-600"    bg="bg-blue-50"/>
+        <StatCard label="Open Jobs"      value={jobs.filter(j=>j.status==="pending").length}   Icon={Calendar}    color="text-violet-600"  bg="bg-violet-50"/>
+        <StatCard label="Outstanding"    value={`$${outstanding.toFixed(0)}`}                   Icon={DollarSign}  color="text-red-500"     bg="bg-red-50"/>
+        <StatCard label="Jobs Completed" value={jobs.filter(j=>j.status==="complete").length}  Icon={Check}       color="text-emerald-600" bg="bg-emerald-50"/>
       </div>
+
+      {/* Home/Away status */}
+      <Card className="mb-4">
+        <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><HomeIcon size={14} className="text-blue-500"/> Property Status</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {clients.filter(c=>c.status==="active").map(c=>(
+            <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+              <div>
+                <div className="text-xs font-semibold text-gray-800">{c.lastName}</div>
+                <div className="text-[10px] text-gray-400">{c.street}</div>
+              </div>
+              <button onClick={()=>toggleHome(c.id)}
+                className={`text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${c.isHome?"bg-emerald-100 text-emerald-700 hover:bg-emerald-200":"bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                {c.isHome?"HOME":"AWAY"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <div className="flex items-center gap-2 text-gray-700 font-semibold text-sm mb-4">
             <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center"><Calendar size={13} className="text-blue-600"/></div>
             Today's Schedule
           </div>
-          {todayJobs.length===0 ? <Empty msg="Nothing scheduled for today" /> : todayJobs.map(j => (
+          {todayJobs.length===0?<Empty msg="Nothing scheduled today"/>:todayJobs.map(j=>(
             <div key={j.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-gray-800">{j.title}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{gc(j.clientId)?.name} - {j.time} - {j.assignedTo}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{gc(j.clientId)?.lastName} · {j.time} · {j.assignedTo}</div>
               </div>
-              <button onClick={() => doneJob(j.id)} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg hover:bg-emerald-100 flex-shrink-0 font-medium">Done</button>
+              <button onClick={()=>doneJob(j.id)} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg hover:bg-emerald-100 flex-shrink-0 font-medium">Done</button>
             </div>
           ))}
         </Card>
@@ -271,13 +365,13 @@ function Dashboard({ clients, jobs, invoices, gc, setTab, doneJob }) {
             <div className="w-6 h-6 rounded-md bg-violet-50 flex items-center justify-center"><Wrench size={13} className="text-violet-600"/></div>
             Coming Up
           </div>
-          {upcoming.length===0 ? <Empty msg="Schedule is clear ahead" /> : upcoming.map(j => (
+          {upcoming.length===0?<Empty msg="Schedule is clear"/>:upcoming.map(j=>(
             <div key={j.id} className="py-3 border-b border-gray-100 last:border-0">
               <div className="flex justify-between items-center gap-2">
                 <span className="text-sm font-semibold text-gray-800">{j.title}</span>
-                <Badge type={j.type} />
+                <Badge type={j.type}/>
               </div>
-              <div className="text-xs text-gray-500 mt-1">{gc(j.clientId)?.name} - {j.date} - {j.assignedTo}</div>
+              <div className="text-xs text-gray-500 mt-1">{gc(j.clientId)?.lastName} · {j.date} · {j.assignedTo}</div>
             </div>
           ))}
         </Card>
@@ -286,337 +380,225 @@ function Dashboard({ clients, jobs, invoices, gc, setTab, doneJob }) {
   );
 }
 
-function Clients({ clients, setModal, goMsg }) {
+// ── Client name helper ────────────────────────────────────────────────────────
+const clientDisplayName = c => c ? `${c.firstName} ${c.lastName}${c.secondaryName?` & ${c.secondaryName}`:""}` : "";
+const clientFullAddress = c => c ? `${c.street}, ${c.city}, ${c.state} ${c.zip}` : "";
+
+// ── Clients ───────────────────────────────────────────────────────────────────
+function Clients({clients,jobs,invoices,notes,payments,setModal,goMsg,toggleHome,setTab,setSel,clientTab,setClientTab}) {
+  const [search,   setSearch]   = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const filtered = clients.filter(c => {
+    const q = search.toLowerCase();
+    return !q || clientDisplayName(c).toLowerCase().includes(q) ||
+      c.phone?.includes(q) || c.email?.toLowerCase().includes(q) ||
+      c.street?.toLowerCase().includes(q) || c.acct?.includes(q) ||
+      c.zip?.includes(q);
+  });
+
+  const openClient = c => { setSelected(c); setClientTab("profile"); };
+
+  if (selected) {
+    const c = clients.find(x=>x.id===selected.id) || selected;
+    const cJobs     = jobs.filter(j=>j.clientId===c.id&&j.status==="complete");
+    const cInvoices = invoices.filter(i=>i.clientId===c.id);
+    const cNotes    = notes.filter(n=>n.clientId===c.id);
+    return (
+      <div>
+        <button onClick={()=>setSelected(null)} className="flex items-center gap-1.5 text-blue-600 text-sm font-medium mb-4 hover:text-blue-700">
+          <ChevronRight size={14} className="rotate-180"/> Back to Clients
+        </button>
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">{clientDisplayName(c)}</h1>
+              <Badge type={c.status}/>
+              <Badge type={c.isHome?"home":"away"} label={c.isHome?"Home":"Away"}/>
+            </div>
+            <div className="text-sm text-gray-500 mt-1">Account #{c.acct} · {clientFullAddress(c)}</div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={()=>toggleHome(c.id)} className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${c.isHome?"border-emerald-300 bg-emerald-50 text-emerald-700":"border-slate-200 bg-slate-50 text-slate-600"}`}>
+              Toggle {c.isHome?"Away":"Home"}
+            </button>
+            <button onClick={()=>{goMsg(c);}} className="border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors">Message</button>
+            <button onClick={()=>setModal({type:"client",data:c})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors">Edit Profile</button>
+          </div>
+        </div>
+
+        {/* Sub tabs */}
+        <div className="flex gap-1 mb-5 border-b border-gray-200">
+          {["profile","history","invoices","notes"].map(t=>(
+            <button key={t} onClick={()=>setClientTab(t)}
+              className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px
+                ${clientTab===t?"border-blue-600 text-blue-600":"border-transparent text-gray-500 hover:text-gray-700"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {clientTab==="profile"&&(
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Contact</div>
+              <div className="space-y-2 text-sm">
+                <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{c.phone}</span></div>
+                <div><span className="text-gray-500">Email:</span> <span className="font-medium">{c.email}</span></div>
+                <div><span className="text-gray-500">Address:</span> <span className="font-medium">{clientFullAddress(c)}</span></div>
+                <div><span className="text-gray-500">Season Away:</span> <span className="font-medium">{fmtDate(c.seasonStart)} – {fmtDate(c.seasonEnd)}</span></div>
+                <div><span className="text-gray-500">Monitoring Fee:</span> <span className="font-semibold text-blue-600">${c.monitoringFee}/mo</span></div>
+              </div>
+            </Card>
+            <Card>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Emergency Contact</div>
+              <div className="space-y-2 text-sm">
+                <div><span className="text-gray-500">Name:</span> <span className="font-medium">{c.emergency?.name}</span></div>
+                <div><span className="text-gray-500">Relationship:</span> <span className="font-medium">{c.emergency?.relationship}</span></div>
+                <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{c.emergency?.phone}</span></div>
+                <div><span className="text-gray-500">Email:</span> <span className="font-medium">{c.emergency?.email}</span></div>
+              </div>
+            </Card>
+            {c.notes&&<Card className="md:col-span-2"><div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Notes</div><p className="text-sm text-gray-700 leading-relaxed">{c.notes}</p></Card>}
+          </div>
+        )}
+
+        {clientTab==="history"&&(
+          <div>
+            <p className="text-sm text-gray-500 mb-4">All completed jobs for this client.</p>
+            {cJobs.length===0?<Empty msg="No completed jobs yet"/>:cJobs.sort((a,b)=>b.date.localeCompare(a.date)).map(j=>(
+              <Row key={j.id}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-800">{j.title}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{j.date} · {j.assignedTo}</div>
+                  {j.notes&&<div className="text-xs text-gray-400 mt-0.5">{j.notes}</div>}
+                </div>
+                <Badge type={j.type}/>
+              </Row>
+            ))}
+          </div>
+        )}
+
+        {clientTab==="invoices"&&(
+          <div>
+            {cInvoices.length===0?<Empty msg="No invoices yet"/>:cInvoices.sort((a,b)=>b.date.localeCompare(a.date)).map(inv=>(
+              <Row key={inv.id} className="justify-between cursor-pointer" onClick={()=>setModal({type:"invoice_view",data:inv})}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1"><span className="text-sm font-semibold text-gray-800">Invoice #{inv.id}</span><Badge type={inv.status}/></div>
+                  <div className="text-xs text-gray-500">{fmtDate(inv.date)} · Due {fmtDate(inv.due)}</div>
+                </div>
+                <div className={`text-xl font-bold ml-3 ${inv.status==="overdue"?"text-red-500":"text-gray-800"}`}>{fmt$(calcInvTotal(inv))}</div>
+              </Row>
+            ))}
+          </div>
+        )}
+
+        {clientTab==="notes"&&(
+          <div>
+            {cNotes.length===0?<Empty msg="No notes yet"/>:cNotes.sort((a,b)=>b.date.localeCompare(a.date)).map(n=>(
+              <Card key={n.id} className="mb-3">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="flex items-center gap-2"><span className="font-semibold text-gray-900">{n.title}</span><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${PRIORITY_STYLES[n.priority]?.badge}`}>{PRIORITY_STYLES[n.priority]?.icon}{PRIORITY_STYLES[n.priority]?.label}</span></div>
+                    <div className="text-xs text-gray-400 mt-0.5">{fmtDate(n.date)}</div>
+                  </div>
+                  <button onClick={()=>setModal({type:"note",data:n})} className="border border-gray-200 text-gray-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">{n.text}</p>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <SectionHead title="Clients" sub="Manage your homeowner accounts" onAdd={() => setModal({type:"client",data:null})} addLabel="Add Client" />
-      {clients.map(c => (
-        <Row key={c.id} className="justify-between">
+      <SectionHead title="Clients" sub={`${clients.length} total · ${clients.filter(c=>c.status==="active").length} active`} onAdd={()=>setModal({type:"client",data:null})} addLabel="Add Client"/>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search by name, phone, address, account..."/>
+      {filtered.map(c=>(
+        <Row key={c.id} className="cursor-pointer" onClick={()=>openClient(c)}>
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-blue-700 font-bold text-sm">{c.lastName[0]}{c.firstName[0]}</span>
+          </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-semibold text-gray-900">{c.name}</span><Badge type={c.status} />
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <span className="font-semibold text-gray-900">{clientDisplayName(c)}</span>
+              <Badge type={c.status}/>
+              <Badge type={c.isHome?"home":"away"} label={c.isHome?"Home":"Away"}/>
             </div>
-            <div className="text-xs text-gray-500">{c.address}</div>
-            <div className="text-xs text-gray-400 mt-0.5">Away: {c.season} - {c.phone}</div>
+            <div className="text-xs text-gray-500">{c.street}, {c.city} · #{c.acct}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{c.phone} · Away: {fmtDate(c.seasonStart)}–{fmtDate(c.seasonEnd)}</div>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <button onClick={() => goMsg(c)} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><MessageSquare size={13}/></button>
-            <button onClick={() => setModal({type:"client",data:c})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={13}/></button>
+            <button onClick={e=>{e.stopPropagation();goMsg(c);}} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><MessageSquare size={13}/></button>
+            <button onClick={e=>{e.stopPropagation();setModal({type:"client",data:c});}} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={13}/></button>
           </div>
         </Row>
       ))}
-      {clients.length===0 && <Empty msg="No clients yet" />}
+      {filtered.length===0&&<Empty msg="No clients match your search"/>}
     </div>
   );
 }
 
-function Schedule({ jobs, gc, setModal, doneJob }) {
+// ── Schedule ──────────────────────────────────────────────────────────────────
+function Schedule({jobs,gc,setModal,doneJob}) {
   const [filter, setFilter] = useState("all");
-  const filters = ["all","pending","complete","watching","transport","project"];
-  const list = [...jobs].filter(j => filter==="all" ? true : j.type===filter||j.status===filter).sort((a,b)=>a.date.localeCompare(b.date));
+  const filters = ["all","watching","transport","other"];
+  const pending = jobs.filter(j=>j.status==="pending"&&(filter==="all"||j.type===filter)).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const typeIcon = t => t==="transport"?<Car size={13} className="text-violet-500"/>:t==="watching"?<HomeIcon size={13} className="text-sky-500"/>:<Wrench size={13} className="text-orange-500"/>;
+
   return (
     <div>
-      <SectionHead title="Schedule" sub="All jobs, rides, and service visits" onAdd={() => setModal({type:"job",data:null})} addLabel="New Job" />
+      <SectionHead title="Schedule" sub="Upcoming and open jobs" onAdd={()=>setModal({type:"job",data:null})} addLabel="New Job"/>
       <div className="flex gap-2 mb-5 flex-wrap">
-        {filters.map(f => (
-          <button key={f} onClick={() => setFilter(f)}
+        {filters.map(f=>(
+          <button key={f} onClick={()=>setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors
-              ${filter===f ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}>
-            {f}
+              ${filter===f?"bg-blue-600 text-white shadow-sm":"bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}>
+            {f==="watching"?"House Sitting":f==="transport"?"Transportation":f==="other"?"Other":f}
           </button>
         ))}
       </div>
-      {list.map(j => (
+      {pending.map(j=>(
         <Row key={j.id}>
-          <div className="text-center w-12 flex-shrink-0 bg-gray-50 rounded-lg py-1.5">
+          <div className="text-center w-14 flex-shrink-0 bg-gray-50 rounded-lg py-2">
             <div className="text-xs font-bold text-blue-600">{j.date.slice(5).replace("-","/")}</div>
             <div className="text-xs text-gray-400">{j.time}</div>
           </div>
+          <div className="w-6 flex-shrink-0 flex items-center justify-center">{typeIcon(j.type)}</div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-sm font-semibold text-gray-800">{j.title}</span>
-              <Badge type={j.type}/><Badge type={j.status}/>
-            </div>
-            <div className="text-xs text-gray-500">{gc(j.clientId)?.name} - {j.assignedTo}</div>
-            {j.notes && <div className="text-xs text-gray-400 mt-0.5">{j.notes}</div>}
-          </div>
-          <div className="flex gap-1.5 flex-shrink-0">
-            {j.status==="pending" && <button onClick={() => doneJob(j.id)} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 font-medium">Done</button>}
-            <button onClick={() => setModal({type:"job",data:j})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
-          </div>
-        </Row>
-      ))}
-      {list.length===0 && <Empty msg="No jobs match this filter" />}
-    </div>
-  );
-}
-
-function Billing({ invoices, gc, setModal, markPaid }) {
-  const [filter, setFilter] = useState("all");
-  const total = s => invoices.filter(i=>i.status===s).reduce((a,i)=>a+i.amount,0);
-  const list  = invoices.filter(i => filter==="all" ? true : i.status===filter);
-  return (
-    <div>
-      <SectionHead title="Billing" sub="Invoices and payments" onAdd={() => setModal({type:"invoice",data:null})} addLabel="New Invoice" />
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {[
-          { label:"Overdue",   val:`$${total("overdue")}`,  color:"text-red-600",     bg:"bg-red-50",     border:"border-red-100"     },
-          { label:"Pending",   val:`$${total("pending")}`,  color:"text-blue-600",    bg:"bg-blue-50",    border:"border-blue-100"    },
-          { label:"Collected", val:`$${total("paid")}`,     color:"text-emerald-600", bg:"bg-emerald-50", border:"border-emerald-100" },
-        ].map((s,i) => (
-          <div key={i} className={`${s.bg} border ${s.border} rounded-xl p-4`}>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{s.label}</div>
-            <div className={`text-2xl font-bold ${s.color}`}>{s.val}</div>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2 mb-5">
-        {["all","pending","overdue","paid"].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors
-              ${filter===f ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}>
-            {f}
-          </button>
-        ))}
-      </div>
-      {list.map(inv => (
-        <Row key={inv.id} className="justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-semibold text-gray-900">{gc(inv.clientId)?.name}</span><Badge type={inv.status}/>
-            </div>
-            <div className="text-xs text-gray-500">{inv.description}</div>
-            <div className="text-xs text-gray-400 mt-0.5">Issued {inv.date} - Due {inv.due}</div>
-          </div>
-          <div className={`text-xl font-bold flex-shrink-0 mx-3 ${inv.status==="overdue" ? "text-red-500" : "text-gray-800"}`}>${inv.amount}</div>
-          <div className="flex gap-1.5 flex-shrink-0">
-            {inv.status!=="paid" && <button onClick={() => markPaid(inv.id)} className="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 shadow-sm">Mark Paid</button>}
-            <button onClick={() => setModal({type:"invoice",data:inv})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
-          </div>
-        </Row>
-      ))}
-      {list.length===0 && <Empty msg="No invoices found" />}
-    </div>
-  );
-}
-
-function Messages({ clients, sel, setSel, allMsgs, draft, setDraft, sendMsg }) {
-  const msgs   = sel ? allMsgs.filter(m => m.clientId===sel.id) : [];
-  const endRef = useRef(null);
-  useEffect(() => { endRef.current?.scrollIntoView({behavior:"smooth"}); }, [msgs]);
-  return (
-    <div className="flex gap-4 h-[calc(100vh-120px)]">
-      <div className="w-52 flex-shrink-0">
-        <h2 className="font-bold text-gray-900 text-base mb-3">Conversations</h2>
-        {clients.map(c => (
-          <button key={c.id} onClick={() => setSel(c)}
-            className={`w-full text-left px-3 py-2.5 rounded-xl mb-1.5 transition-all border
-              ${sel?.id===c.id ? "bg-blue-600 text-white border-blue-600 shadow-sm" : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm"}`}>
-            <div className={`text-xs font-semibold ${sel?.id===c.id ? "text-white" : "text-gray-800"}`}>{c.name}</div>
-            <div className={`text-[10px] mt-0.5 ${sel?.id===c.id ? "text-blue-100" : "text-gray-400"}`}>{c.phone}</div>
-          </button>
-        ))}
-      </div>
-      <Card className="flex-1 flex flex-col overflow-hidden min-w-0 !p-4">
-        {sel ? (
-          <>
-            <div className="pb-3 border-b border-gray-100 mb-3">
-              <div className="font-bold text-gray-900">{sel.name}</div>
-              <div className="text-xs text-gray-500">{sel.phone} - {sel.email}</div>
-            </div>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-3">
-              {msgs.length===0 && <Empty msg="No messages yet" />}
-              {msgs.map(m => (
-                <div key={m.id} className={`flex ${m.fromClient ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[75%] px-3.5 py-2.5 text-sm rounded-2xl leading-relaxed
-                    ${m.fromClient ? "bg-gray-100 text-gray-800 rounded-tl-sm" : "bg-blue-600 text-white rounded-tr-sm"}`}>
-                    <div className={`text-[10px] mb-1 ${m.fromClient ? "text-gray-400" : "text-blue-200"}`}>{m.from} - {m.time}</div>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-              <div ref={endRef} />
-            </div>
-            <div className="flex gap-2">
-              <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()}
-                placeholder="Type a message..."
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-900 outline-none focus:border-blue-400 placeholder-gray-400" />
-              <button onClick={sendMsg} className="bg-blue-600 text-white px-3.5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
-                <Send size={15}/>
-              </button>
-            </div>
-          </>
-        ) : <Empty msg="Select a client to view messages" />}
-      </Card>
-    </div>
-  );
-}
-
-function Notes({ notes, gc, setModal }) {
-  return (
-    <div>
-      <SectionHead title="Property Notes" sub="Log incidents, repairs, and observations" onAdd={() => setModal({type:"note",data:null})} addLabel="Add Note" />
-      {notes.map(n => (
-        <Card key={n.id} className="mb-3">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <div className="font-semibold text-gray-900">{n.title}</div>
-              <div className="text-xs text-gray-400 mt-0.5">{gc(n.clientId)?.name} - {n.date}</div>
-            </div>
-            <button onClick={() => setModal({type:"note",data:n})} className="border border-gray-200 text-gray-400 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
-          </div>
-          <p className="text-sm text-gray-600 leading-relaxed">{n.text}</p>
-        </Card>
-      ))}
-      {notes.length===0 && <Empty msg="No notes yet" />}
-    </div>
-  );
-}
-
-function Access({ clients }) {
-  const [shown, setShown] = useState({});
-  const toggle = (id,k) => setShown(p => ({...p, [`${id}-${k}`]: !p[`${id}-${k}`]}));
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Access Codes</h1>
-      <p className="text-sm text-gray-500 mb-4">Reveal only when needed - stored locally on this device</p>
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 mb-5">
-        Codes are saved in your browser only. Never share this screen with unauthorized people.
-      </div>
-      {clients.map(c => (
-        <Card key={c.id} className="mb-4">
-          <div className="font-bold text-gray-900 text-base mb-0.5">{c.name}</div>
-          <div className="text-xs text-gray-400 mb-4">{c.address}</div>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            {[{l:"Garage",k:"garage"},{l:"Alarm",k:"alarm"},{l:"Gate",k:"gate"}].map(({l,k}) => (
-              <div key={k} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">{l}</div>
-                {c.codes[k] ? (
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg tracking-widest text-gray-800">{shown[`${c.id}-${k}`] ? c.codes[k] : "......"}</span>
-                    <button onClick={() => toggle(c.id,k)} className="border border-gray-200 text-gray-400 p-1 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                      {shown[`${c.id}-${k}`] ? <EyeOff size={11}/> : <Eye size={11}/>}
-                    </button>
-                  </div>
-                ) : <span className="text-xs text-gray-300">Not set</span>}
+            <div className="text-sm font-semibold text-gray-800">{j.title}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{clientDisplayName(gc(j.clientId))} · {j.assignedTo}</div>
+            {j.transport&&j.type==="transport"&&(
+              <div className="text-xs text-gray-400 mt-0.5">
+                {j.transport.subtype==="flight"&&`✈ ${j.transport.airline} ${j.transport.flightNum} · ${j.transport.airport} · ${j.transport.direction}`}
+                {j.transport.subtype==="medical"&&`🏥 ${j.transport.dropLocation}`}
+                {j.transport.pickupLocation&&` · Pickup: ${j.transport.pickupLocation}`}
               </div>
-            ))}
+            )}
+            {j.notes&&<div className="text-xs text-gray-400 mt-0.5">{j.notes}</div>}
           </div>
-          {c.emergency && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Phone size={11} className="text-blue-500"/> Emergency: {c.emergency}
-            </div>
-          )}
-        </Card>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button onClick={()=>doneJob(j.id)} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 font-medium">Done</button>
+            <button onClick={()=>setModal({type:"job",data:j})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+          </div>
+        </Row>
       ))}
+      {pending.length===0&&<Empty msg="No open jobs"/>}
     </div>
   );
 }
 
-const Modal = ({ title, onClose, onSave, saveLabel="Save", children }) => (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto border border-gray-100" onClick={e=>e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-5">
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        <button onClick={onClose} className="border border-gray-200 text-gray-400 p-1.5 rounded-lg hover:bg-gray-100"><X size={14}/></button>
-      </div>
-      {children}
-      <div className="flex gap-3 justify-end mt-5 pt-4 border-t border-gray-100">
-        <button onClick={onClose} className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 font-medium">Cancel</button>
-        <button onClick={onSave}  className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shadow-sm">{saveLabel}</button>
-      </div>
-    </div>
-  </div>
-);
+// ── Billing ───────────────────────────────────────────────────────────────────
+function Billing({invoices,payments,gc,setModal,markPaid,services}) {
+  const [filter,  setFilter]  = useState("all");
+  const [search,  setSearch]  = useState("");
+  const [stmtClient, setStmtClient] = useState("");
 
-const FG = ({ label, children }) => (
-  <div className="mb-3.5">
-    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>
-    {children}
-  </div>
-);
+  const total = s => invoices.filter(i=>i.status===s).reduce((a,i)=>a+calcInvTotal(i),0);
 
-const inputCls = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 outline-none focus:border-blue-400 placeholder-gray-400 transition-all";
-const selCls   = `${inputCls} appearance-none cursor-pointer`;
-
-function ClientModal({ data, onSave, onClose }) {
-  const [f,setF] = useState(data || {name:"",email:"",phone:"",address:"",season:"",status:"active",notes:"",emergency:"",codes:{garage:"",alarm:"",gate:""}});
-  const s  = (k,v) => setF(p=>({...p,[k]:v}));
-  const sc = (k,v) => setF(p=>({...p,codes:{...p.codes,[k]:v}}));
-  return (
-    <Modal title={data?"Edit Client":"New Client"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Client">
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Full Name"><input className={inputCls} value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Name(s)"/></FG>
-        <FG label="Status"><select className={selCls} value={f.status} onChange={e=>s("status",e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option></select></FG>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Email"><input className={inputCls} value={f.email} onChange={e=>s("email",e.target.value)}/></FG>
-        <FG label="Phone"><input className={inputCls} value={f.phone} onChange={e=>s("phone",e.target.value)}/></FG>
-      </div>
-      <FG label="Property Address"><input className={inputCls} value={f.address} onChange={e=>s("address",e.target.value)}/></FG>
-      <FG label="Season Away"><input className={inputCls} value={f.season} onChange={e=>s("season",e.target.value)} placeholder="e.g. May-September"/></FG>
-      <FG label="Emergency Contact"><input className={inputCls} value={f.emergency} onChange={e=>s("emergency",e.target.value)}/></FG>
-      <FG label="Notes"><textarea className={`${inputCls} resize-y min-h-[70px]`} value={f.notes} onChange={e=>s("notes",e.target.value)}/></FG>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 mt-1">Access Codes</p>
-      <div className="grid grid-cols-3 gap-3">
-        <FG label="Garage"><input className={inputCls} value={f.codes.garage} onChange={e=>sc("garage",e.target.value)}/></FG>
-        <FG label="Alarm"><input className={inputCls} value={f.codes.alarm}  onChange={e=>sc("alarm",e.target.value)}/></FG>
-        <FG label="Gate"><input className={inputCls} value={f.codes.gate}   onChange={e=>sc("gate",e.target.value)}/></FG>
-      </div>
-    </Modal>
-  );
-}
-
-function JobModal({ data, clients, onSave, onClose }) {
-  const [f,setF] = useState(data || {clientId:clients[0]?.id,type:"watching",title:"",date:"",time:"",assignedTo:"Owner",notes:"",status:"pending"});
-  const s = (k,v) => setF(p=>({...p,[k]:v}));
-  return (
-    <Modal title={data?"Edit Job":"New Job"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Job">
-      <FG label="Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></FG>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Job Type"><select className={selCls} value={f.type} onChange={e=>s("type",e.target.value)}><option value="watching">House Watch</option><option value="transport">Transport / Ride</option><option value="project">Project / Task</option></select></FG>
-        <FG label="Assigned To"><select className={selCls} value={f.assignedTo} onChange={e=>s("assignedTo",e.target.value)}><option>Owner</option><option>Mike</option><option>Carlos</option></select></FG>
-      </div>
-      <FG label="Job Title"><input className={inputCls} value={f.title} onChange={e=>s("title",e.target.value)} placeholder="e.g. Airport ride - MIA"/></FG>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
-        <FG label="Time"><input className={inputCls} type="time" value={f.time} onChange={e=>s("time",e.target.value)}/></FG>
-      </div>
-      <FG label="Notes"><textarea className={`${inputCls} resize-y min-h-[70px]`} value={f.notes} onChange={e=>s("notes",e.target.value)}/></FG>
-    </Modal>
-  );
-}
-
-function InvModal({ data, clients, onSave, onClose }) {
-  const [f,setF] = useState(data || {clientId:clients[0]?.id,amount:"",description:"",date:new Date().toISOString().split("T")[0],due:"",status:"pending"});
-  const s = (k,v) => setF(p=>({...p,[k]:v}));
-  return (
-    <Modal title={data?"Edit Invoice":"New Invoice"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Invoice">
-      <FG label="Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></FG>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Amount ($)"><input className={inputCls} type="number" value={f.amount} onChange={e=>s("amount",Number(e.target.value))}/></FG>
-        <FG label="Status"><select className={selCls} value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="overdue">Overdue</option><option value="paid">Paid</option></select></FG>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Invoice Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
-        <FG label="Due Date"><input className={inputCls} type="date" value={f.due} onChange={e=>s("due",e.target.value)}/></FG>
-      </div>
-      <FG label="Services Rendered"><textarea className={`${inputCls} resize-y min-h-[70px]`} value={f.description} onChange={e=>s("description",e.target.value)}/></FG>
-    </Modal>
-  );
-}
-
-function NoteModal({ data, clients, onSave, onClose }) {
-  const [f,setF] = useState(data || {clientId:clients[0]?.id,title:"",text:"",date:new Date().toISOString().split("T")[0]});
-  const s = (k,v) => setF(p=>({...p,[k]:v}));
-  return (
-    <Modal title={data?"Edit Note":"New Property Note"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Note">
-      <FG label="Property / Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></FG>
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Title"><input className={inputCls} value={f.title} onChange={e=>s("title",e.target.value)} placeholder="Brief summary"/></FG>
-        <FG label="Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
-      </div>
-      <FG label="Note"><textarea className={`${inputCls} resize-y min-h-[100px]`} value={f.text} onChange={e=>s("text",e.target.value)} placeholder="What happened, what was done, who was contacted..."/></FG>
-    </Modal>
-  );
-}
+  const filtered = invoices.filter(i=>{
+    const q
