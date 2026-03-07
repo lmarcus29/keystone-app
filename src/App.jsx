@@ -601,4 +601,636 @@ function Billing({invoices,payments,gc,setModal,markPaid,services}) {
   const total = s => invoices.filter(i=>i.status===s).reduce((a,i)=>a+calcInvTotal(i),0);
 
   const filtered = invoices.filter(i=>{
-    const q
+    const q = search.toLowerCase();
+    const c = gc(i.clientId);
+    const matchesSearch = !q || clientDisplayName(c).toLowerCase().includes(q) || String(i.id).includes(q);
+    const matchesFilter = filter==="all" || i.status===filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <div>
+      <SectionHead title="Billing" sub="Invoices, payments & statements"
+        onAdd={()=>setModal({type:"invoice",data:null})} addLabel="New Invoice"/>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          {label:"Overdue",   val:fmt$(total("overdue")),  color:"text-red-600",     bg:"bg-red-50",     border:"border-red-100"},
+          {label:"Pending",   val:fmt$(total("pending")),  color:"text-blue-600",    bg:"bg-blue-50",    border:"border-blue-100"},
+          {label:"Collected", val:fmt$(total("paid")),     color:"text-emerald-600", bg:"bg-emerald-50", border:"border-emerald-100"},
+        ].map((s,i)=>(
+          <div key={i} className={`${s.bg} border ${s.border} rounded-xl p-4`}>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{s.label}</div>
+            <div className={`text-2xl font-bold ${s.color}`}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+
+      <SearchBar value={search} onChange={setSearch} placeholder="Search by client name or invoice #..."/>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {["all","pending","overdue","paid"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors
+              ${filter===f?"bg-blue-600 text-white shadow-sm":"bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {filtered.map(inv=>(
+        <Row key={inv.id} className="cursor-pointer" onClick={()=>setModal({type:"invoice_view",data:inv})}>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="font-semibold text-gray-900">{clientDisplayName(gc(inv.clientId))}</span>
+              <Badge type={inv.status}/>
+              <span className="text-xs text-gray-400">#{inv.id}</span>
+            </div>
+            <div className="text-xs text-gray-500">{(inv.services||[]).map(s=>s.name).join(", ")}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Issued {fmtDate(inv.date)} · Due {fmtDate(inv.due)}</div>
+          </div>
+          <div className={`text-xl font-bold flex-shrink-0 mx-3 ${inv.status==="overdue"?"text-red-500":"text-gray-800"}`}>{fmt$(calcInvTotal(inv))}</div>
+          <div className="flex gap-1.5 flex-shrink-0" onClick={e=>e.stopPropagation()}>
+            {inv.status!=="paid"&&<button onClick={()=>setModal({type:"payment",data:inv})} className="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 shadow-sm">Record Payment</button>}
+            <button onClick={()=>setModal({type:"invoice",data:inv})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+          </div>
+        </Row>
+      ))}
+      {filtered.length===0&&<Empty msg="No invoices found"/>}
+    </div>
+  );
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────────
+function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg}) {
+  const msgs = sel ? allMsgs.filter(m=>m.clientId===sel.id) : [];
+  const endRef = useRef(null);
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
+  return (
+    <div className="flex gap-4 h-[calc(100vh-120px)]">
+      <div className="w-52 flex-shrink-0">
+        <h2 className="font-bold text-gray-900 text-base mb-3">Conversations</h2>
+        {clients.map(c=>(
+          <button key={c.id} onClick={()=>setSel(c)}
+            className={`w-full text-left px-3 py-2.5 rounded-xl mb-1.5 transition-all border
+              ${sel?.id===c.id?"bg-blue-600 text-white border-blue-600 shadow-sm":"bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm"}`}>
+            <div className={`text-xs font-semibold ${sel?.id===c.id?"text-white":"text-gray-800"}`}>{clientDisplayName(c)}</div>
+            <div className={`text-[10px] mt-0.5 ${sel?.id===c.id?"text-blue-100":"text-gray-400"}`}>{c.phone}</div>
+          </button>
+        ))}
+      </div>
+      <Card className="flex-1 flex flex-col overflow-hidden min-w-0 !p-4">
+        {sel?(
+          <>
+            <div className="pb-3 border-b border-gray-100 mb-3">
+              <div className="font-bold text-gray-900">{clientDisplayName(sel)}</div>
+              <div className="text-xs text-gray-500">{sel.phone} · {sel.email}</div>
+            </div>
+            <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-3">
+              {msgs.length===0&&<Empty msg="No messages yet"/>}
+              {msgs.map(m=>(
+                <div key={m.id} className={`flex ${m.fromClient?"justify-start":"justify-end"}`}>
+                  <div className={`max-w-[75%] px-3.5 py-2.5 text-sm rounded-2xl leading-relaxed
+                    ${m.fromClient?"bg-gray-100 text-gray-800 rounded-tl-sm":"bg-blue-600 text-white rounded-tr-sm"}`}>
+                    <div className={`text-[10px] mb-1 ${m.fromClient?"text-gray-400":"text-blue-200"}`}>{m.from} · {m.time}</div>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              <div ref={endRef}/>
+            </div>
+            <div className="flex gap-2">
+              <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()}
+                placeholder="Type a message..."
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-900 outline-none focus:border-blue-400 placeholder-gray-400"/>
+              <button onClick={sendMsg} className="bg-blue-600 text-white px-3.5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"><Send size={15}/></button>
+            </div>
+          </>
+        ):<Empty msg="Select a client to view messages"/>}
+      </Card>
+    </div>
+  );
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+function Notes({notes,gc,setModal,clients}) {
+  const [filterClient, setFilterClient] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+
+  const filtered = notes.filter(n=>{
+    const matchC = filterClient==="all" || String(n.clientId)===filterClient;
+    const matchP = filterPriority==="all" || n.priority===filterPriority;
+    return matchC && matchP;
+  }).sort((a,b)=>{
+    const order = {high:0,medium:1,low:2};
+    return (order[a.priority]||1)-(order[b.priority]||1);
+  });
+
+  const highCount = notes.filter(n=>n.priority==="high").length;
+
+  return (
+    <div>
+      <SectionHead title="Property Notes" sub="Incidents, repairs, and observations" onAdd={()=>setModal({type:"note",data:null})} addLabel="Add Note"
+        extra={highCount>0&&<span className="flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-medium px-3 py-1.5 rounded-lg"><AlertTriangle size={12}/>{highCount} critical</span>}/>
+      <div className="flex gap-2 mb-5 flex-wrap">
+        <select value={filterClient} onChange={e=>setFilterClient(e.target.value)}
+          className="px-3 py-1.5 rounded-lg text-xs bg-white border border-gray-200 text-gray-600 outline-none focus:border-blue-400">
+          <option value="all">All Clients</option>
+          {clients.map(c=><option key={c.id} value={String(c.id)}>{clientDisplayName(c)}</option>)}
+        </select>
+        {["all","high","medium","low"].map(p=>(
+          <button key={p} onClick={()=>setFilterPriority(p)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors
+              ${filterPriority===p?"bg-blue-600 text-white shadow-sm":"bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}>
+            {p==="high"?"Critical":p==="medium"?"Medium":p==="low"?"Low":"All"}
+          </button>
+        ))}
+      </div>
+      {filtered.map(n=>(
+        <Card key={n.id} className={`mb-3 ${n.priority==="high"?"border-red-200 bg-red-50/30":""}`}>
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-gray-900">{n.title}</span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${PRIORITY_STYLES[n.priority]?.badge}`}>
+                  {PRIORITY_STYLES[n.priority]?.icon}{PRIORITY_STYLES[n.priority]?.label}
+                </span>
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">{clientDisplayName(gc(n.clientId))} · {fmtDate(n.date)}</div>
+            </div>
+            <button onClick={()=>setModal({type:"note",data:n})} className="border border-gray-200 text-gray-400 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+          </div>
+          <p className="text-sm text-gray-600 leading-relaxed">{n.text}</p>
+        </Card>
+      ))}
+      {filtered.length===0&&<Empty msg="No notes match this filter"/>}
+    </div>
+  );
+}
+
+// ── Access Codes ──────────────────────────────────────────────────────────────
+function Access({clients}) {
+  const [shown, setShown] = useState({});
+  const toggle = (id,k) => setShown(p=>({...p,[`${id}-${k}`]:!p[`${id}-${k}`]}));
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Access Codes</h1>
+      <p className="text-sm text-gray-500 mb-4">Reveal only when needed — stored locally on this device</p>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 mb-5">
+        🔒 Codes are saved in your browser only. Never share this screen with unauthorized people.
+      </div>
+      {clients.map(c=>(
+        <Card key={c.id} className="mb-4">
+          <div className="font-bold text-gray-900 text-base">{clientDisplayName(c)}</div>
+          <div className="text-xs text-gray-400 mb-4">{clientFullAddress(c)} · #{c.acct}</div>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {[{l:"Garage",k:"garage"},{l:"Alarm",k:"alarm"},{l:"Gate",k:"gate"}].map(({l,k})=>(
+              <div key={k} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">{l}</div>
+                {c.codes?.[k]?(
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-lg tracking-widest text-gray-800">{shown[`${c.id}-${k}`]?c.codes[k]:"••••••"}</span>
+                    <button onClick={()=>toggle(c.id,k)} className="border border-gray-200 text-gray-400 p-1 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                      {shown[`${c.id}-${k}`]?<EyeOff size={11}/>:<Eye size={11}/>}
+                    </button>
+                  </div>
+                ):<span className="text-xs text-gray-300">Not set</span>}
+              </div>
+            ))}
+          </div>
+          {c.emergency?.phone&&(
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Phone size={11} className="text-blue-500"/> Emergency: {c.emergency.name} · {c.emergency.phone}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── Services ──────────────────────────────────────────────────────────────────
+function Services({services,setModal}) {
+  return (
+    <div>
+      <SectionHead title="Service Rates" sub="Standard fees for billing" onAdd={()=>setModal({type:"service",data:null})} addLabel="Add Service"/>
+      {services.map(s=>(
+        <Row key={s.id} className="justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-gray-900 text-sm">{s.name}</div>
+            <div className="text-xs text-gray-400 capitalize mt-0.5">{s.category}</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-blue-600 text-lg">${s.fee}</span>
+            <button onClick={()=>setModal({type:"service",data:s})} className="border border-gray-200 text-gray-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+          </div>
+        </Row>
+      ))}
+    </div>
+  );
+}
+
+// ── Modal base ────────────────────────────────────────────────────────────────
+const Modal = ({title,onClose,onSave,saveLabel="Save",children,wide=false}) => (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full ${wide?"max-w-2xl":"max-w-lg"} max-h-[92vh] overflow-y-auto border border-gray-100`} onClick={e=>e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-5">
+        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+        <button onClick={onClose} className="border border-gray-200 text-gray-400 p-1.5 rounded-lg hover:bg-gray-100"><X size={14}/></button>
+      </div>
+      {children}
+      {onSave&&(
+        <div className="flex gap-3 justify-end mt-5 pt-4 border-t border-gray-100">
+          <button onClick={onClose} className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 font-medium">Cancel</button>
+          <button onClick={onSave} className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shadow-sm">{saveLabel}</button>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const FG = ({label,children,half=false}) => (
+  <div className={`mb-3.5 ${half?"":"w-full"}`}>
+    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>
+    {children}
+  </div>
+);
+const G2 = ({children}) => <div className="grid grid-cols-2 gap-3">{children}</div>;
+const G3 = ({children}) => <div className="grid grid-cols-3 gap-3">{children}</div>;
+
+const inputCls = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder-gray-400 transition-all";
+const selCls   = `${inputCls} appearance-none cursor-pointer`;
+
+// ── Client Modal ──────────────────────────────────────────────────────────────
+function ClientModal({data,onSave,onClose}) {
+  const blank = {firstName:"",lastName:"",secondaryName:"",email:"",phone:"",street:"",city:"",state:"FL",zip:"",season:"",seasonStart:"",seasonEnd:"",status:"active",notes:"",monitoringFee:0,isHome:false,codes:{garage:"",alarm:"",gate:""},emergency:{name:"",phone:"",email:"",relationship:"Spouse"}};
+  const [f,setF] = useState(data||blank);
+  const s  = (k,v) => setF(p=>({...p,[k]:v}));
+  const sc = (k,v) => setF(p=>({...p,codes:{...p.codes,[k]:v}}));
+  const se = (k,v) => setF(p=>({...p,emergency:{...p.emergency,[k]:v}}));
+  const [zipLoading, setZipLoading] = useState(false);
+
+  const lookupZip = async (zip) => {
+    if(zip.length!==5) return;
+    setZipLoading(true);
+    try {
+      const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+      if(res.ok){
+        const data = await res.json();
+        s("city", data.places[0]["place name"]);
+        s("state", data.places[0]["state abbreviation"]);
+      }
+    } catch {}
+    setZipLoading(false);
+  };
+
+  return (
+    <Modal title={data?"Edit Client":"New Client"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Client" wide>
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Name</div>
+      <G2>
+        <FG label="First Name"><input className={inputCls} value={f.firstName} onChange={e=>s("firstName",e.target.value)}/></FG>
+        <FG label="Last Name"><input className={inputCls} value={f.lastName} onChange={e=>s("lastName",e.target.value)}/></FG>
+      </G2>
+      <G2>
+        <FG label="Secondary Name (optional)"><input className={inputCls} value={f.secondaryName} onChange={e=>s("secondaryName",e.target.value)} placeholder="e.g. spouse name"/></FG>
+        <FG label="Status"><select className={selCls} value={f.status} onChange={e=>s("status",e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option></select></FG>
+      </G2>
+      <G2>
+        <FG label="Email"><input className={inputCls} value={f.email} onChange={e=>s("email",e.target.value)}/></FG>
+        <FG label="Phone"><input className={inputCls} value={f.phone} onChange={e=>s("phone",e.target.value)}/></FG>
+      </G2>
+
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 mt-1">Property Address</div>
+      <FG label="Street Address"><input className={inputCls} value={f.street} onChange={e=>s("street",e.target.value)}/></FG>
+      <G3>
+        <FG label={`Zip${zipLoading?" (loading...)":""}`}>
+          <input className={inputCls} value={f.zip} onChange={e=>{s("zip",e.target.value); if(e.target.value.length===5) lookupZip(e.target.value);}} maxLength={5} placeholder="33428"/>
+        </FG>
+        <FG label="City"><input className={inputCls} value={f.city} onChange={e=>s("city",e.target.value)}/></FG>
+        <FG label="State"><input className={inputCls} value={f.state} onChange={e=>s("state",e.target.value)} maxLength={2}/></FG>
+      </G3>
+
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 mt-1">Season Away</div>
+      <G2>
+        <FG label="Season Start"><input className={inputCls} type="date" value={f.seasonStart} onChange={e=>s("seasonStart",e.target.value)}/></FG>
+        <FG label="Season End"><input className={inputCls} type="date" value={f.seasonEnd} onChange={e=>s("seasonEnd",e.target.value)}/></FG>
+      </G2>
+      <G2>
+        <FG label="Monthly Monitoring Fee ($)"><input className={inputCls} type="number" value={f.monitoringFee} onChange={e=>s("monitoringFee",Number(e.target.value))}/></FG>
+        <FG label="Currently">
+          <select className={selCls} value={f.isHome?"home":"away"} onChange={e=>s("isHome",e.target.value==="home")}>
+            <option value="away">Away</option>
+            <option value="home">Home</option>
+          </select>
+        </FG>
+      </G2>
+
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 mt-1">Emergency Contact</div>
+      <G2>
+        <FG label="Name"><input className={inputCls} value={f.emergency.name} onChange={e=>se("name",e.target.value)}/></FG>
+        <FG label="Relationship">
+          <select className={selCls} value={f.emergency.relationship} onChange={e=>se("relationship",e.target.value)}>
+            {["Spouse","Child","Parent","Sibling","Friend","Attorney","Other"].map(r=><option key={r}>{r}</option>)}
+          </select>
+        </FG>
+      </G2>
+      <G2>
+        <FG label="Phone"><input className={inputCls} value={f.emergency.phone} onChange={e=>se("phone",e.target.value)}/></FG>
+        <FG label="Email"><input className={inputCls} value={f.emergency.email} onChange={e=>se("email",e.target.value)}/></FG>
+      </G2>
+
+      <FG label="Notes"><textarea className={`${inputCls} resize-y min-h-[70px]`} value={f.notes} onChange={e=>s("notes",e.target.value)}/></FG>
+
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 mt-1">Access Codes</div>
+      <G3>
+        {[{l:"Garage",k:"garage"},{l:"Alarm",k:"alarm"},{l:"Gate",k:"gate"}].map(({l,k})=>(
+          <FG key={k} label={l}>
+            <input className={inputCls} type="password" value={f.codes[k]} onChange={e=>sc(k,e.target.value)} placeholder="••••••"/>
+          </FG>
+        ))}
+      </G3>
+    </Modal>
+  );
+}
+
+// ── Job Modal ─────────────────────────────────────────────────────────────────
+function JobModal({data,clients,onSave,onClose}) {
+  const blank = {clientId:clients[0]?.id,type:"watching",title:"",date:"",time:"",assignedTo:"Owner",notes:"",status:"pending",transport:null};
+  const [f,setF] = useState(data||blank);
+  const [tr,setTr] = useState(data?.transport||{subtype:"flight",airport:"",airline:"",flightNum:"",direction:"departure",pickupLocation:"",dropLocation:"",pickupTime:""});
+  const s  = (k,v) => setF(p=>({...p,[k]:v}));
+  const st = (k,v) => setTr(p=>({...p,[k]:v}));
+
+  const handleSave = () => {
+    onSave({...f, transport: f.type==="transport" ? tr : null});
+  };
+
+  return (
+    <Modal title={data?"Edit Job":"New Job"} onClose={onClose} onSave={handleSave} saveLabel="Save Job" wide>
+      <FG label="Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{clientDisplayName(c)}</option>)}</select></FG>
+      <G2>
+        <FG label="Job Type">
+          <select className={selCls} value={f.type} onChange={e=>s("type",e.target.value)}>
+            <option value="watching">House Sitting</option>
+            <option value="transport">Transportation</option>
+            <option value="other">Other</option>
+          </select>
+        </FG>
+        <FG label="Assigned To">
+          <select className={selCls} value={f.assignedTo} onChange={e=>s("assignedTo",e.target.value)}>
+            <option>Owner</option><option>Mike</option><option>Carlos</option>
+          </select>
+        </FG>
+      </G2>
+      <FG label="Job Title / Description"><input className={inputCls} value={f.title} onChange={e=>s("title",e.target.value)} placeholder="Brief description"/></FG>
+      <G2>
+        <FG label="Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
+        <FG label="Time"><input className={inputCls} type="time" value={f.time} onChange={e=>s("time",e.target.value)}/></FG>
+      </G2>
+
+      {f.type==="transport"&&(
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-3">
+          <div className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-3">Transportation Details</div>
+          <FG label="Type">
+            <select className={selCls} value={tr.subtype} onChange={e=>st("subtype",e.target.value)}>
+              <option value="flight">Flight (Airport)</option>
+              <option value="medical">Medical / Doctor</option>
+              <option value="other">Other</option>
+            </select>
+          </FG>
+          {tr.subtype==="flight"&&(
+            <>
+              <G2>
+                <FG label="Airport Code"><input className={inputCls} value={tr.airport} onChange={e=>st("airport",e.target.value)} placeholder="e.g. MIA"/></FG>
+                <FG label="Direction">
+                  <select className={selCls} value={tr.direction} onChange={e=>st("direction",e.target.value)}>
+                    <option value="departure">Departure</option>
+                    <option value="arrival">Arrival</option>
+                  </select>
+                </FG>
+              </G2>
+              <G2>
+                <FG label="Airline"><input className={inputCls} value={tr.airline} onChange={e=>st("airline",e.target.value)} placeholder="e.g. American"/></FG>
+                <FG label="Flight #"><input className={inputCls} value={tr.flightNum} onChange={e=>st("flightNum",e.target.value)} placeholder="e.g. AA1045"/></FG>
+              </G2>
+            </>
+          )}
+          <G2>
+            <FG label="Pickup Location"><input className={inputCls} value={tr.pickupLocation} onChange={e=>st("pickupLocation",e.target.value)}/></FG>
+            <FG label="Drop-off Location"><input className={inputCls} value={tr.dropLocation} onChange={e=>st("dropLocation",e.target.value)}/></FG>
+          </G2>
+          {tr.direction==="departure"&&<FG label="Pickup Time"><input className={inputCls} type="time" value={tr.pickupTime} onChange={e=>st("pickupTime",e.target.value)}/></FG>}
+        </div>
+      )}
+
+      <FG label="Notes"><textarea className={`${inputCls} resize-y min-h-[60px]`} value={f.notes} onChange={e=>s("notes",e.target.value)}/></FG>
+    </Modal>
+  );
+}
+
+// ── Invoice Modal ─────────────────────────────────────────────────────────────
+function InvModal({data,clients,services,onSave,onClose}) {
+  const blank = {clientId:clients[0]?.id,services:[],supplies:0,discount:0,date:today(),due:"",status:"pending",notes:""};
+  const [f,setF] = useState(data||blank);
+  const s = (k,v) => setF(p=>({...p,[k]:v}));
+
+  const addService = (svcId) => {
+    const svc = services.find(s=>s.id===Number(svcId));
+    if(!svc) return;
+    setF(p=>({...p,services:[...p.services,{serviceId:svc.id,name:svc.name,qty:1,fee:svc.fee,custom:""}]}));
+  };
+  const updateSvc = (idx,k,v) => setF(p=>({...p,services:p.services.map((sv,i)=>i===idx?{...sv,[k]:v}:sv)}));
+  const removeSvc = idx => setF(p=>({...p,services:p.services.filter((_,i)=>i!==idx)}));
+
+  const subtotal = (f.services||[]).reduce((s,sv)=>s+(sv.fee*(sv.qty||1)),0);
+  const total    = subtotal + Number(f.supplies||0) - subtotal*(Number(f.discount||0)/100);
+
+  return (
+    <Modal title={data?"Edit Invoice":"New Invoice"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Invoice" wide>
+      <FG label="Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{clientDisplayName(c)}</option>)}</select></FG>
+      <G2>
+        <FG label="Invoice Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
+        <FG label="Due Date"><input className={inputCls} type="date" value={f.due} onChange={e=>s("due",e.target.value)}/></FG>
+      </G2>
+
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 mt-1">Services</div>
+      <select className={`${selCls} mb-3`} value="" onChange={e=>addService(e.target.value)}>
+        <option value="">+ Add a service...</option>
+        {services.map(s=><option key={s.id} value={s.id}>{s.name} (${s.fee})</option>)}
+      </select>
+      {(f.services||[]).map((sv,i)=>(
+        <div key={i} className="flex gap-2 items-center mb-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+          <div className="flex-1 text-sm font-medium text-gray-800">{sv.name}</div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">Qty:</span>
+            <input type="number" min="1" value={sv.qty} onChange={e=>updateSvc(i,"qty",Number(e.target.value))} className="w-14 px-2 py-1 text-sm border border-gray-200 rounded-lg text-center bg-white outline-none focus:border-blue-400"/>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">$</span>
+            <input type="number" value={sv.fee} onChange={e=>updateSvc(i,"fee",Number(e.target.value))} className="w-16 px-2 py-1 text-sm border border-gray-200 rounded-lg text-center bg-white outline-none focus:border-blue-400"/>
+          </div>
+          <div className="text-sm font-semibold text-gray-800 w-16 text-right">{fmt$(sv.fee*sv.qty)}</div>
+          <button onClick={()=>removeSvc(i)} className="text-red-400 hover:text-red-600 p-1"><X size={13}/></button>
+        </div>
+      ))}
+
+      <G2>
+        <FG label="Supplies ($)"><input className={inputCls} type="number" value={f.supplies} onChange={e=>s("supplies",Number(e.target.value))}/></FG>
+        <FG label="Discount (%)"><input className={inputCls} type="number" value={f.discount} min="0" max="100" onChange={e=>s("discount",Number(e.target.value))}/></FG>
+      </G2>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
+        <div className="flex justify-between text-xs text-gray-600 mb-1"><span>Subtotal</span><span>{fmt$(subtotal)}</span></div>
+        {f.supplies>0&&<div className="flex justify-between text-xs text-gray-600 mb-1"><span>Supplies</span><span>{fmt$(f.supplies)}</span></div>}
+        {f.discount>0&&<div className="flex justify-between text-xs text-red-600 mb-1"><span>Discount ({f.discount}%)</span><span>-{fmt$(subtotal*(f.discount/100))}</span></div>}
+        <div className="flex justify-between text-sm font-bold text-blue-700 pt-1 border-t border-blue-200"><span>Total</span><span>{fmt$(total)}</span></div>
+      </div>
+
+      <FG label="Notes"><textarea className={`${inputCls} resize-y min-h-[60px]`} value={f.notes} onChange={e=>s("notes",e.target.value)}/></FG>
+    </Modal>
+  );
+}
+
+// ── Note Modal ────────────────────────────────────────────────────────────────
+function NoteModal({data,clients,onSave,onClose}) {
+  const [f,setF] = useState(data||{clientId:clients[0]?.id,title:"",text:"",date:today(),priority:"medium"});
+  const s = (k,v) => setF(p=>({...p,[k]:v}));
+  return (
+    <Modal title={data?"Edit Note":"New Property Note"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Note">
+      <FG label="Client"><select className={selCls} value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}>{clients.map(c=><option key={c.id} value={c.id}>{clientDisplayName(c)}</option>)}</select></FG>
+      <G2>
+        <FG label="Title"><input className={inputCls} value={f.title} onChange={e=>s("title",e.target.value)}/></FG>
+        <FG label="Priority">
+          <select className={selCls} value={f.priority} onChange={e=>s("priority",e.target.value)}>
+            <option value="high">Critical</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </FG>
+      </G2>
+      <FG label="Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
+      <FG label="Note"><textarea className={`${inputCls} resize-y min-h-[100px]`} value={f.text} onChange={e=>s("text",e.target.value)} placeholder="What happened, what was done, who was contacted..."/></FG>
+    </Modal>
+  );
+}
+
+// ── Payment Modal ─────────────────────────────────────────────────────────────
+function PaymentModal({data,onSave,onClose}) {
+  const [method, setMethod] = useState("zelle");
+  const [checkNum, setCheckNum] = useState("");
+  const total = fmt$(calcInvTotal(data));
+  return (
+    <Modal title="Record Payment" onClose={onClose} onSave={()=>onSave(data.id,method,method==="check"?checkNum:"")} saveLabel="Record Payment">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+        <div className="text-xs text-gray-500 mb-1">Invoice Total</div>
+        <div className="text-2xl font-bold text-blue-700">{total}</div>
+      </div>
+      <FG label="Payment Method">
+        <select className={selCls} value={method} onChange={e=>setMethod(e.target.value)}>
+          <option value="zelle">Zelle</option>
+          <option value="venmo">Venmo</option>
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+          <option value="credit_card">Credit Card</option>
+        </select>
+      </FG>
+      {method==="check"&&<FG label="Check Number"><input className={inputCls} value={checkNum} onChange={e=>setCheckNum(e.target.value)} placeholder="Check #"/></FG>}
+    </Modal>
+  );
+}
+
+// ── Service Modal ─────────────────────────────────────────────────────────────
+function ServiceModal({data,onSave,onClose}) {
+  const [f,setF] = useState(data||{name:"",fee:0,category:"other"});
+  const s = (k,v) => setF(p=>({...p,[k]:v}));
+  return (
+    <Modal title={data?"Edit Service":"New Service"} onClose={onClose} onSave={()=>onSave(f)} saveLabel="Save Service">
+      <FG label="Service Name"><input className={inputCls} value={f.name} onChange={e=>s("name",e.target.value)}/></FG>
+      <G2>
+        <FG label="Standard Fee ($)"><input className={inputCls} type="number" value={f.fee} onChange={e=>s("fee",Number(e.target.value))}/></FG>
+        <FG label="Category">
+          <select className={selCls} value={f.category} onChange={e=>s("category",e.target.value)}>
+            <option value="watching">House Sitting</option>
+            <option value="transport">Transportation</option>
+            <option value="project">Project</option>
+            <option value="other">Other</option>
+          </select>
+        </FG>
+      </G2>
+    </Modal>
+  );
+}
+
+// ── Invoice View Modal ────────────────────────────────────────────────────────
+function InvoiceViewModal({data,gc,payments,onClose,setModal}) {
+  const inv = data;
+  const c   = gc(inv.clientId);
+  const pmt = payments.filter(p=>p.invoiceId===inv.id);
+  const total = calcInvTotal(inv);
+
+  const printInvoice = () => {
+    const win = window.open("","_blank");
+    win.document.write(`
+      <html><head><title>Invoice #${inv.id}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:40px;color:#1f2937;max-width:700px;margin:0 auto;}
+        .header{display:flex;justify-content:space-between;align-items:start;margin-bottom:32px;padding-bottom:24px;border-bottom:3px solid #2563eb;}
+        .logo{font-size:24px;font-weight:900;color:#2563eb;letter-spacing:-1px;}
+        .sub{font-size:11px;color:#6b7280;letter-spacing:3px;text-transform:uppercase;}
+        .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:${inv.status==="paid"?"#d1fae5":"#fee2e2"};color:${inv.status==="paid"?"#065f46":"#991b1b"};}
+        table{width:100%;border-collapse:collapse;margin:16px 0;}
+        th{background:#f8fafc;text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:#6b7280;border-bottom:1px solid #e5e7eb;}
+        td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;}
+        .total-row{font-weight:700;font-size:15px;color:#2563eb;}
+        .section{margin-bottom:24px;}
+        .label{font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+        .value{font-size:13px;font-weight:500;}
+        @media print{button{display:none!important;}}
+      </style></head><body>
+      <div class="header">
+        <div><div class="logo">KeyStone</div><div class="sub">House Services</div></div>
+        <div style="text-align:right"><div style="font-size:20px;font-weight:700">Invoice #${inv.id}</div><div style="margin-top:4px"><span class="badge">${inv.status.toUpperCase()}</span></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px;">
+        <div class="section"><div class="label">Bill To</div><div class="value" style="font-weight:700;font-size:15px;">${clientDisplayName(c)}</div><div class="value">${clientFullAddress(c)}</div><div class="value">${c?.phone}</div><div class="label" style="margin-top:8px">Account #</div><div class="value">${c?.acct}</div></div>
+        <div class="section"><div class="label">Invoice Date</div><div class="value">${fmtDate(inv.date)}</div><div class="label" style="margin-top:8px">Due Date</div><div class="value">${fmtDate(inv.due)}</div></div>
+      </div>
+      <table><thead><tr><th>Service</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>
+        ${(inv.services||[]).map(sv=>`<tr><td>${sv.name}</td><td>${sv.qty}</td><td>$${sv.fee.toFixed(2)}</td><td>$${(sv.fee*sv.qty).toFixed(2)}</td></tr>`).join("")}
+        ${inv.supplies>0?`<tr><td>Supplies</td><td>1</td><td>$${Number(inv.supplies).toFixed(2)}</td><td>$${Number(inv.supplies).toFixed(2)}</td></tr>`:""}
+        ${inv.discount>0?`<tr><td colspan="3" style="text-align:right;color:#dc2626;">Discount (${inv.discount}%)</td><td style="color:#dc2626;">-$${((inv.services||[]).reduce((s,sv)=>s+sv.fee*sv.qty,0)*inv.discount/100).toFixed(2)}</td></tr>`:""}
+        <tr class="total-row"><td colspan="3" style="text-align:right;padding-top:16px;">TOTAL DUE</td><td style="padding-top:16px;">$${total.toFixed(2)}</td></tr>
+      </tbody></table>
+      ${pmt.length>0?`<div class="section" style="margin-top:24px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;"><div class="label" style="color:#166534;">Payment Received</div>${pmt.map(p=>`<div class="value" style="color:#166534;">${fmtDate(p.date)} · ${p.method}${p.checkNum?" #"+p.checkNum:""} · $${p.amount?.toFixed(2)}</div>`).join("")}</div>`:""}
+      <div style="margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;">Thank you for your business · KeyStone House Services</div>
+      <button onclick="window.print()" style="margin-top:16px;padding:10px 24px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Print / Save as PDF</button>
+      </body></html>
+    `);
+    win.document.close();
+  };
+
+  return (
+    <Modal title={`Invoice #${inv.id}`} onClose={onClose} wide>
+      <div className="flex items-center justify-between mb-4">
+        <div><div className="font-bold text-gray-900">{clientDisplayName(c)}</div><div className="text-xs text-gray-500">#{c?.acct} · Due {fmtDate(inv.due)}</div></div>
+        <div className="flex items-center gap-2"><Badge type={inv.status}/><button onClick={printInvoice} className="flex items-center gap-1.5 border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors"><Printer size={12}/>Print / PDF</button></div>
+      </div>
+      <table className="w-full text-sm mb-4">
+        <thead><tr className="bg-gray-50"><th className="text-left px-3 py-2 text-xs text-gray-500 font-semibold">Service</th><th className="text-center px-3 py-2 text-xs text-gray-500 font-semibold">Qty</th><th className="text-right px-3 py-2 text-xs text-gray-500 font-semibold">Rate</th><th className="text-right px-3 py-2 text-xs text-gray-500 font-semibold">Amount</th></tr></thead>
+        <tbody>
+          {(inv.services||[]).map((sv,i)=><tr key={i} className="border-b border-gray-100"><td className="px-3 py-2">{sv.name}</td><td className="px-3 py-2 text-center">{sv.qty}</td><td className="px-3 py-2 text-right">{fmt$(sv.fee)}</td><td className="px-3 py-2 text-right font-medium">{fmt$(sv.fee*sv.qty)}</td></tr>)}
+          {inv.supplies>0&&<tr className="border-b border-gray-100"><td className="px-3 py-2">Supplies</td><td className="px-3 py-2 text-center">1</td><td className="px-3 py-2 text-right">{fmt$(inv.supplies)}</td><td className="px-3 py-2 text-right font-medium">{fmt$(inv.supplies)}</td></tr>}
+          {inv.discount>0&&<tr className="border-b border-gray-100 text-red-600"><td colSpan={3} className="px-3 py-2 text-right">Discount ({inv.discount}%)</td><td className="px-3 py-2 text-right">-{fmt$((inv.services||[]).reduce((s,sv)=>s+sv.fee*sv.qty,0)*inv.discount/100)}</td></tr>}
+          <tr className="bg-blue-50"><td colSpan={3} className="px-3 py-2 text-right font-bold text-blue-700">Total</td><td className="px-3 py-2 text-right font-bold text-blue-700 text-lg">{fmt$(total)}</td></tr>
+        </tbody>
+      </table>
+      {pmt.length>0&&<div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3">{pmt.map(p=><div key={p.id} className="text-xs text-emerald-700"><strong>Paid:</strong> {fmtDate(p.date)} · {p.method}{p.checkNum?` #${p.checkNum}`:""} · {fmt$(p.amount)}</div>)}</div>}
+      {inv.status!=="paid"&&<button onClick={()=>{onClose();setModal({type:"payment",data:inv});}} className="w-full bg-emerald-600 text-white font-semibold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors mt-2">Record Payment</button>}
+    </Modal>
+  );
+}
+
+// ── Statement Modal ───────────────────────────────────────────────────────────
+function StatementModal({data,gc,invoices,payments,onClose}) {
+  return <Modal title="Statement of Account" onClose={onClose} wide><Empty msg="Statement feature coming soon"/></Modal>;
+}
