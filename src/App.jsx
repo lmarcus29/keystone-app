@@ -4,11 +4,13 @@ import {
   Lock, Key, Bell, Send, Edit2, Plus, Check, Phone, Eye, EyeOff,
   Wrench, X, ChevronRight, Search, AlertTriangle, AlertCircle, Info,
   Car, Plane, Printer, Tag, Mail, Thermometer, Shield, Wifi, List,
-  Download, Upload, Activity, Home as HomeIcon
+  Download, Upload, Activity, ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
+  Smartphone, Clock, CreditCard
 } from "lucide-react";
 
+const APP_VERSION = "1.4.0";
 const V = "v4";
-const SK = { clients:`ks_${V}_clients`, jobs:`ks_${V}_jobs`, invoices:`ks_${V}_invoices`, payments:`ks_${V}_payments`, messages:`ks_${V}_messages`, notes:`ks_${V}_notes`, services:`ks_${V}_services`, audit:`ks_${V}_audit` };
+const SK = { clients:`ks_${V}_clients`, jobs:`ks_${V}_jobs`, invoices:`ks_${V}_invoices`, payments:`ks_${V}_payments`, messages:`ks_${V}_messages`, notes:`ks_${V}_notes`, services:`ks_${V}_services`, audit:`ks_${V}_audit`, adjustments:`ks_${V}_adjustments` };
 const load = (k,fb) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):fb; } catch { return fb; }};
 const save = (k,v)  => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
 
@@ -23,6 +25,14 @@ const lookupZip = async zip => { try { const r=await fetch(`https://api.zippopot
 const calcInvTotal = inv => { const sub=(inv.services||[]).reduce((s,sv)=>s+(sv.fee*(sv.qty||1)),0); return sub+Number(inv.supplies||0)-sub*(Number(inv.discount||0)/100); };
 const clientDisplayName = c => c?`${c.firstName} ${c.lastName}${c.secFirstName?` & ${c.secFirstName} ${c.secLastName}`:""}` : "";
 const clientFullAddress  = c => c?`${c.street}, ${c.city}, ${c.state} ${c.zip}`:"";
+const addDays = (dateStr, n) => { const d=new Date(dateStr+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; };
+
+const greeting = () => {
+  const h = new Date().getHours();
+  if(h < 12) return "Good Morning";
+  if(h < 17) return "Good Afternoon";
+  return "Good Evening";
+};
 
 const daysAwayInMonth = (sStart,sEnd,year,month) => {
   if(!sStart||!sEnd) return 0;
@@ -63,9 +73,9 @@ const DEFAULT_SERVICES = [
 
 const SEED = {
   clients:[
-    {id:1,acct:"47382",firstName:"Margaret",lastName:"Whitfield",secFirstName:"Harold",secLastName:"Whitfield",email:"whitfields@email.com",email2:"",phone:"561-442-8801",street:"14 Pelican Cove Dr",neighborhood:"Pelican Cove",city:"Boca Raton",state:"FL",zip:"33428",notes:"Prefers texts. Very detail-oriented. Check back porch screen door.",seasonStart:"2026-05-01",seasonEnd:"2026-09-30",status:"active",isHome:false,monitoringFee:150,codes:{garageOpen:"4892*",garageClose:"4892#",alarmOn:"7714*",alarmOff:"7714#",gateOpen:"1028*",gateClose:"1028#"},awaySettings:{thermostat:78,alarmEnabled:true,lights:false,otherNotes:"Pool pump timer on auto."},specialRequests:"Margaret would like a text after every visit.",emergency:{name:"Karen Whitfield",phone:"561-330-9204",email:"karen.w@gmail.com",relationship:"Daughter"}},
-    {id:2,acct:"82951",firstName:"Robert",lastName:"Lassiter",secFirstName:"Anne",secLastName:"Lassiter",email:"rlassiter@gmail.com",email2:"anne.lassiter@gmail.com",phone:"954-881-2200",street:"88 Coral Ridge Blvd",neighborhood:"Coral Ridge",city:"Fort Lauderdale",state:"FL",zip:"33308",notes:"Dr. Lassiter uses a walker. Anne needs airport rides frequently. Good tippers.",seasonStart:"2026-06-01",seasonEnd:"2026-08-31",status:"active",isHome:false,monitoringFee:175,codes:{garageOpen:"3301*",garageClose:"3301#",alarmOn:"9982*",alarmOff:"9982#",gateOpen:"",gateClose:""},awaySettings:{thermostat:76,alarmEnabled:true,lights:true,otherNotes:"Leave porch light on timer."},specialRequests:"",emergency:{name:"Brett Lassiter",phone:"954-771-0045",email:"brett.l@gmail.com",relationship:"Son"}},
-    {id:3,acct:"63017",firstName:"Frank",lastName:"Delgado",secFirstName:"",secLastName:"",email:"fdelgado55@yahoo.com",email2:"",phone:"786-554-6610",street:"22 Sawgrass Ln",neighborhood:"",city:"Coral Springs",state:"FL",zip:"33065",notes:"Winter resident only. Has a 24ft boat in side yard — check monthly.",seasonStart:"2026-11-01",seasonEnd:"2027-03-31",status:"inactive",isHome:false,monitoringFee:125,codes:{garageOpen:"6640*",garageClose:"6640#",alarmOn:"2255*",alarmOff:"2255#",gateOpen:"5501*",gateClose:"5501#"},awaySettings:{thermostat:80,alarmEnabled:true,lights:false,otherNotes:"Check boat cover monthly."},specialRequests:"Call Frank directly for anything over $200.",emergency:{name:"Maria Delgado",phone:"786-554-6611",email:"maria.d@yahoo.com",relationship:"Spouse"}},
+    {id:1,acct:"47382",firstName:"Margaret",lastName:"Whitfield",secFirstName:"Harold",secLastName:"Whitfield",email:"whitfields@email.com",email2:"",phone:"561-442-8801",street:"14 Pelican Cove Dr",neighborhood:"Pelican Cove",city:"Boca Raton",state:"FL",zip:"33428",notes:"Prefers texts. Very detail-oriented. Check back porch screen door.",seasonStart:"2026-05-01",seasonEnd:"2026-09-30",status:"active",isHome:false,overrideStatus:null,overrideExpiry:null,monitoringFee:150,codes:{garageOpen:"4892*",garageClose:"4892#",alarmOn:"7714*",alarmOff:"7714#",gateOpen:"1028*",gateClose:"1028#"},awaySettings:{thermostat:78,alarmEnabled:true,lights:false,otherNotes:"Pool pump timer on auto."},specialRequests:"Margaret would like a text after every visit.",emergency:{name:"Karen Whitfield",phone:"561-330-9204",email:"karen.w@gmail.com",relationship:"Daughter"}},
+    {id:2,acct:"82951",firstName:"Robert",lastName:"Lassiter",secFirstName:"Anne",secLastName:"Lassiter",email:"rlassiter@gmail.com",email2:"anne.lassiter@gmail.com",phone:"954-881-2200",street:"88 Coral Ridge Blvd",neighborhood:"Coral Ridge",city:"Fort Lauderdale",state:"FL",zip:"33308",notes:"Dr. Lassiter uses a walker. Anne needs airport rides frequently. Good tippers.",seasonStart:"2026-06-01",seasonEnd:"2026-08-31",status:"active",isHome:false,overrideStatus:null,overrideExpiry:null,monitoringFee:175,codes:{garageOpen:"3301*",garageClose:"3301#",alarmOn:"9982*",alarmOff:"9982#",gateOpen:"",gateClose:""},awaySettings:{thermostat:76,alarmEnabled:true,lights:true,otherNotes:"Leave porch light on timer."},specialRequests:"",emergency:{name:"Brett Lassiter",phone:"954-771-0045",email:"brett.l@gmail.com",relationship:"Son"}},
+    {id:3,acct:"63017",firstName:"Frank",lastName:"Delgado",secFirstName:"",secLastName:"",email:"fdelgado55@yahoo.com",email2:"",phone:"786-554-6610",street:"22 Sawgrass Ln",neighborhood:"",city:"Coral Springs",state:"FL",zip:"33065",notes:"Winter resident only. Has a 24ft boat in side yard — check monthly.",seasonStart:"2026-11-01",seasonEnd:"2027-03-31",status:"inactive",isHome:false,overrideStatus:null,overrideExpiry:null,monitoringFee:125,codes:{garageOpen:"6640*",garageClose:"6640#",alarmOn:"2255*",alarmOff:"2255#",gateOpen:"5501*",gateClose:"5501#"},awaySettings:{thermostat:80,alarmEnabled:true,lights:false,otherNotes:"Check boat cover monthly."},specialRequests:"Call Frank directly for anything over $200.",emergency:{name:"Maria Delgado",phone:"786-554-6611",email:"maria.d@yahoo.com",relationship:"Spouse"}},
   ],
   jobs:[
     {id:1,clientId:1,type:"watching",title:"Weekly Walkthrough",date:"2026-03-10",time:"09:00",assignedTo:"Mike",status:"pending",notes:"Check sprinklers, pool level, collect mail.",transport:null,recurring:false},
@@ -74,23 +84,24 @@ const SEED = {
     {id:4,clientId:3,type:"watching",title:"Boat Cover Check",date:"2026-03-15",time:"10:00",assignedTo:"Carlos",status:"pending",notes:"Check cover integrity.",transport:null,recurring:false},
   ],
   invoices:[
-    {id:1,clientId:1,description:"Monthly House Service",periodStart:"2026-03-01",periodEnd:"2026-03-31",services:[{serviceId:1,name:"Monthly House Service",qty:1,fee:150,custom:""}],supplies:0,discount:0,date:"2026-03-01",due:"2026-03-15",status:"pending",notes:"March services"},
-    {id:2,clientId:2,description:"February Services",periodStart:"2026-02-01",periodEnd:"2026-02-28",services:[{serviceId:3,name:"Airport Transportation",qty:2,fee:65,custom:""},{serviceId:1,name:"House Walkthrough",qty:1,fee:45,custom:""}],supplies:0,discount:0,date:"2026-02-01",due:"2026-02-15",status:"overdue",notes:""},
-    {id:3,clientId:3,description:"Nov-Dec Services",periodStart:"2025-11-01",periodEnd:"2025-12-31",services:[{serviceId:8,name:"Pool Check",qty:2,fee:25,custom:""},{serviceId:1,name:"House Walkthrough",qty:3,fee:45,custom:""}],supplies:0,discount:0,date:"2026-01-01",due:"2026-01-15",status:"overdue",notes:""},
+    {id:1,clientId:1,description:"Monthly House Service",periodStart:"2026-03-01",periodEnd:"2026-03-31",services:[{serviceId:1,name:"Monthly House Service",qty:1,fee:150,custom:""}],supplies:0,discount:0,date:"2026-03-01",due:"2026-03-11",status:"pending",notes:"March services"},
+    {id:2,clientId:2,description:"February Services",periodStart:"2026-02-01",periodEnd:"2026-02-28",services:[{serviceId:3,name:"Airport Transportation",qty:2,fee:65,custom:""},{serviceId:1,name:"House Walkthrough",qty:1,fee:45,custom:""}],supplies:0,discount:0,date:"2026-02-01",due:"2026-02-11",status:"overdue",notes:""},
+    {id:3,clientId:3,description:"Nov-Dec Services",periodStart:"2025-11-01",periodEnd:"2025-12-31",services:[{serviceId:8,name:"Pool Check",qty:2,fee:25,custom:""},{serviceId:1,name:"House Walkthrough",qty:3,fee:45,custom:""}],supplies:0,discount:0,date:"2026-01-01",due:"2026-01-11",status:"overdue",notes:""},
   ],
   payments:[],
   messages:[
-    {id:1,clientId:1,from:"Margaret Whitfield",text:"Hi! Just checking — will someone be by Tuesday?",time:"Mar 5, 10:22am",fromClient:true},
-    {id:2,clientId:1,from:"You",text:"Hi Margaret! Yes, Mike will do the full walkthrough Tuesday at 9am.",time:"Mar 5, 10:45am",fromClient:false},
-    {id:3,clientId:2,from:"Anne Lassiter",text:"Just a reminder about Thursday morning — early flight, 6:30am pickup!",time:"Mar 5, 3:10pm",fromClient:true},
-    {id:4,clientId:2,from:"You",text:"All set Anne! I'll be there at 6:15. Safe travels!",time:"Mar 5, 3:22pm",fromClient:false},
+    {id:1,clientId:1,from:"Margaret Whitfield",text:"Hi! Just checking — will someone be by Tuesday?",time:"Mar 5, 10:22am",fromClient:true,channel:"text"},
+    {id:2,clientId:1,from:"You",text:"Hi Margaret! Yes, Mike will do the full walkthrough Tuesday at 9am.",time:"Mar 5, 10:45am",fromClient:false,channel:"text"},
+    {id:3,clientId:2,from:"Anne Lassiter",text:"Just a reminder about Thursday morning — early flight, 6:30am pickup!",time:"Mar 5, 3:10pm",fromClient:true,channel:"text"},
+    {id:4,clientId:2,from:"You",text:"All set Anne! I'll be there at 6:15. Safe travels!",time:"Mar 5, 3:22pm",fromClient:false,channel:"text"},
   ],
   notes:[
-    {id:1,clientId:1,title:"Pool Pump Failure",text:"Found pool pump not running. Called ABC Pool Service. Repaired within 24 hrs.",date:"2025-03-18",priority:"medium",auto:false,attachment:null},
-    {id:2,clientId:2,title:"Front Door Rekeyed",text:"Locksmith rekeyed front and side entry per client request.",date:"2025-11-02",priority:"low",auto:false,attachment:null},
-    {id:3,clientId:3,title:"Boat Cover Storm Damage",text:"Starboard side torn after tropical storm. Frank authorized replacement up to $150.",date:"2025-09-14",priority:"high",auto:false,attachment:null},
+    {id:1,clientId:1,title:"Pool Pump Failure",text:"Found pool pump not running. Called ABC Pool Service. Repaired within 24 hrs.",date:"2025-03-18",priority:"medium",auto:false,completed:false,attachment:null},
+    {id:2,clientId:2,title:"Front Door Rekeyed",text:"Locksmith rekeyed front and side entry per client request.",date:"2025-11-02",priority:"low",auto:false,completed:false,attachment:null},
+    {id:3,clientId:3,title:"Boat Cover Storm Damage",text:"Starboard side torn after tropical storm. Frank authorized replacement up to $150.",date:"2025-09-14",priority:"high",auto:false,completed:false,attachment:null},
   ],
   audit:[],
+  adjustments:[],
 };
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
@@ -101,6 +112,7 @@ const BADGE = {
   watching:"bg-sky-50 text-sky-700 ring-1 ring-sky-200",transport:"bg-violet-50 text-violet-700 ring-1 ring-violet-200",
   other:"bg-orange-50 text-orange-700 ring-1 ring-orange-200",home:"bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   away:"bg-slate-100 text-slate-500 ring-1 ring-slate-200",override:"bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+  completed:"bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
 };
 const Badge = ({type,label}) => <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${BADGE[type]||BADGE.inactive}`}>{label||type}</span>;
 const PRIORITY = {
@@ -154,10 +166,12 @@ export default function App() {
   const [notes,     setNotes]    = useState(()=>load(SK.notes,    SEED.notes));
   const [services,  setServices] = useState(()=>load(SK.services, DEFAULT_SERVICES));
   const [audit,     setAudit]    = useState(()=>load(SK.audit,    SEED.audit));
+  const [adjustments,setAdjustments] = useState(()=>load(SK.adjustments, SEED.adjustments||[]));
   const [modal,     setModal]    = useState(null);
   const [selClient, setSelClient]= useState(null);
   const [clientTab, setClientTab]= useState("profile");
   const [draft,     setDraft]    = useState("");
+  const [msgChannel,setMsgChannel]=useState("text");
 
   useEffect(()=>save(SK.clients,  clients),  [clients]);
   useEffect(()=>save(SK.jobs,     jobs),     [jobs]);
@@ -167,6 +181,18 @@ export default function App() {
   useEffect(()=>save(SK.notes,    notes),    [notes]);
   useEffect(()=>save(SK.services, services), [services]);
   useEffect(()=>save(SK.audit,    audit),    [audit]);
+  useEffect(()=>save(SK.adjustments, adjustments), [adjustments]);
+
+  // Auto-expire overrides
+  useEffect(()=>{
+    const td=today();
+    setClients(p=>p.map(c=>{
+      if(c.overrideStatus&&c.overrideExpiry&&td>c.overrideExpiry){
+        return {...c,overrideStatus:null,overrideExpiry:null};
+      }
+      return c;
+    }));
+  },[]);
 
   const gc = id => clients.find(c=>c.id===id);
   const overdue = invoices.filter(i=>i.status==="overdue");
@@ -175,7 +201,7 @@ export default function App() {
     const e={id:Date.now(),clientId,action,detail,date:nowStr()};
     setAudit(p=>[e,...p].slice(0,1000));
     if(clientId){
-      setNotes(p=>[{id:Date.now()+1,clientId,title:action,text:detail||action,date:today(),priority:"low",auto:true,attachment:null},...p]);
+      setNotes(p=>[{id:Date.now()+1,clientId,title:action,text:detail||action,date:today(),priority:"low",auto:true,completed:false,attachment:null},...p]);
     }
   };
 
@@ -207,10 +233,17 @@ export default function App() {
 
   const saveNote = d => {
     const isNew=!d.id;
-    if(isNew)setNotes(p=>[...p,{...d,id:Date.now(),auto:false}]);
+    if(isNew)setNotes(p=>[...p,{...d,id:Date.now(),auto:false,completed:false}]);
     else setNotes(p=>p.map(n=>n.id===d.id?d:n));
     if(!d.auto)addAudit(d.clientId,isNew?"Note Added":"Note Updated",d.title);
     setModal(null);
+  };
+
+  const completeNote = (noteId) => {
+    const n=notes.find(x=>x.id===noteId);
+    if(!n) return;
+    setNotes(p=>p.map(x=>x.id===noteId?{...x,completed:true}:x));
+    addAudit(n.clientId,"Note Completed",`${n.title} — marked complete`);
   };
 
   const saveService = d => {
@@ -218,12 +251,22 @@ export default function App() {
     setModal(null);
   };
 
-  const markPaid = (invId,method,checkNum) => {
+  const markPaid = (invId,method,checkNum,amount) => {
     const inv=invoices.find(i=>i.id===invId);
-    setInvoices(p=>p.map(i=>i.id===invId?{...i,status:"paid"}:i));
-    const pmt={id:Date.now(),invoiceId:invId,method,checkNum,date:today(),amount:calcInvTotal(inv)};
+    const total=calcInvTotal(inv);
+    const paidAmount=Number(amount)||total;
+    const isFullyPaid=paidAmount>=total;
+    setInvoices(p=>p.map(i=>i.id===invId?{...i,status:isFullyPaid?"paid":i.status}:i));
+    const pmt={id:Date.now(),invoiceId:invId,method,checkNum,date:today(),amount:paidAmount};
     setPayments(p=>[...p,pmt]);
-    addAudit(inv.clientId,"Payment Recorded",`Invoice #${invId} — ${fmt$(calcInvTotal(inv))} via ${method}${checkNum?" #"+checkNum:""}`);
+    addAudit(inv.clientId,"Payment Recorded",`Invoice #${invId} — ${fmt$(paidAmount)} via ${method}${checkNum?" #"+checkNum:""}${!isFullyPaid?" (partial)":""}`);
+    setModal(null);
+  };
+
+  const postAdjustment = (invId,clientId,amount,reason,type) => {
+    const adj={id:Date.now(),invoiceId:invId,clientId,amount:Number(amount),reason,type,date:today()};
+    setAdjustments(p=>[...p,adj]);
+    addAudit(clientId,"Balance Adjustment",`${type==="credit"?"Credit":"Debit"} ${fmt$(Math.abs(amount))} — ${reason}`);
     setModal(null);
   };
 
@@ -233,21 +276,44 @@ export default function App() {
     if(j)addAudit(j.clientId,"Job Completed",`${j.title} on ${j.date}`);
   };
 
-  const toggleHome = id => {
-    const c=clients.find(x=>x.id===id);
-    const nv=!c.isHome;
-    setClients(p=>p.map(x=>x.id===id?{...x,isHome:nv}:x));
-    addAudit(id,nv?"Client Marked Home":"Client Marked Away",`${clientDisplayName(c)} — override`);
+  const setOverride = (clientId, overrideStatus, overrideExpiry) => {
+    const c=clients.find(x=>x.id===clientId);
+    setClients(p=>p.map(x=>x.id===clientId?{...x,overrideStatus,overrideExpiry}:x));
+    if(overrideStatus){
+      addAudit(clientId,`Override Set — ${overrideStatus==="home"?"Override - Home":"Override - Away"}`,`${clientDisplayName(c)} — expires ${fmtDate(overrideExpiry)}`);
+    } else {
+      addAudit(clientId,"Override Cleared",`${clientDisplayName(c)} — back to schedule`);
+    }
   };
 
-  const sendMsg = () => {
+  const sendMsg = (channelOverride) => {
     if(!draft.trim()||!selClient) return;
-    setMessages(p=>[...p,{id:Date.now(),clientId:selClient.id,from:"You",text:draft,time:nowStr(),fromClient:false}]);
-    addAudit(selClient.id,"Message Sent",draft.slice(0,60));
+    const channel = channelOverride||msgChannel;
+    const msg={id:Date.now(),clientId:selClient.id,from:"You",text:draft,time:nowStr(),fromClient:false,channel};
+    setMessages(p=>[...p,msg]);
+    addAudit(selClient.id,`Message Sent (${channel==="email"?"Email":"Text"})`,draft.slice(0,60));
+    if(channel==="email"){
+      const email=selClient.email||"";
+      if(email){
+        window.open(`mailto:${email}?subject=KeyStone House Services&body=${encodeURIComponent(draft)}`,"_blank");
+      }
+    }
     setDraft("");
   };
 
-  // Auto-generate monthly invoices for clients currently in season
+  // Compute effective property status with override support
+  const getPropertyStatus = (c) => {
+    const td=today();
+    // Check if override is active and not expired
+    if(c.overrideStatus&&c.overrideExpiry&&td<=c.overrideExpiry){
+      return c.overrideStatus==="home"?"override-home":"override-away";
+    }
+    // Schedule-based
+    const inSeason=c.seasonStart&&c.seasonEnd&&td>=c.seasonStart&&td<=c.seasonEnd;
+    return inSeason?"away":"home";
+  };
+
+  // Auto-generate monthly invoices
   const generateMonthlyInvoices = () => {
     const now=new Date(); const yr=now.getFullYear(); const mo=now.getMonth();
     const mStart=`${yr}-${String(mo+1).padStart(2,"0")}-01`;
@@ -259,7 +325,9 @@ export default function App() {
       const already=invoices.find(i=>i.clientId===c.id&&i.periodStart===mStart);
       if(already) return;
       const fee=Number(c.monitoringFee||0);
-      const inv={id:Date.now()+generated,clientId:c.id,description:"Monthly House Service",periodStart:mStart,periodEnd:mEnd,services:[{serviceId:10,name:"Monthly House Service",qty:1,fee,custom:""}],supplies:0,discount:0,date:mStart,due:mEnd,status:"pending",notes:`Auto-generated. Client away ${days} days this month.`};
+      const invDate=mStart;
+      const invDue=addDays(invDate,10);
+      const inv={id:Date.now()+generated,clientId:c.id,description:"Monthly House Service",periodStart:mStart,periodEnd:mEnd,services:[{serviceId:10,name:"Monthly House Service",qty:1,fee,custom:""}],supplies:0,discount:0,date:invDate,due:invDue,status:"pending",notes:`Auto-generated. Client away ${days} days this month.`};
       setInvoices(p=>[...p,inv]);
       addAudit(c.id,"Monthly Invoice Generated",`${clientDisplayName(c)} — ${fmt$(fee)} for ${now.toLocaleString("default",{month:"long"})} ${yr}`);
       generated++;
@@ -284,8 +352,11 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between px-5 h-14 bg-slate-900 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shadow-md"><Key size={15} className="text-white"/></div>
-          <div><div className="font-bold text-white text-sm leading-none tracking-tight">KeyStone</div><div className="text-[10px] text-blue-400 tracking-widest font-medium">HOUSE SERVICES</div></div>
+          <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center shadow-md"><Key size={18} className="text-white"/></div>
+          <div>
+            <div className="font-bold text-white text-base leading-none tracking-tight">KeyStone</div>
+            <div className="text-[10px] text-blue-400 tracking-widest font-medium">HOUSE SERVICES</div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {overdue.length>0&&(
@@ -320,16 +391,19 @@ export default function App() {
                 <div className={`text-xl font-bold ${s.color}`}>{s.val}</div>
               </div>
             ))}
+            <div className="px-2 mt-4 pt-3 border-t border-slate-700">
+              <div className="text-[10px] text-slate-600 font-medium">Version {APP_VERSION}</div>
+            </div>
           </div>
         </nav>
 
         <main className="flex-1 p-5 overflow-y-auto min-w-0">
-          {tab==="dashboard" && <Dashboard clients={clients} jobs={jobs} invoices={invoices} gc={gc} setTab={setTab} doneJob={doneJob} toggleHome={toggleHome} notes={notes} setModal={setModal}/>}
-          {tab==="clients"   && <Clients   clients={clients} jobs={jobs} invoices={invoices} notes={notes} payments={payments} setModal={setModal} selClient={selClient} setSelClient={setSelClient} setTab={setTab} toggleHome={toggleHome} clientTab={clientTab} setClientTab={setClientTab} selMsgClient={c=>{setSelClient(c);setTab("messages");}}/>}
+          {tab==="dashboard" && <Dashboard clients={clients} jobs={jobs} invoices={invoices} gc={gc} setTab={setTab} doneJob={doneJob} setOverride={setOverride} getPropertyStatus={getPropertyStatus} notes={notes} setModal={setModal}/>}
+          {tab==="clients"   && <Clients   clients={clients} jobs={jobs} invoices={invoices} notes={notes} payments={payments} setModal={setModal} selClient={selClient} setSelClient={setSelClient} setTab={setTab} setOverride={setOverride} getPropertyStatus={getPropertyStatus} clientTab={clientTab} setClientTab={setClientTab} selMsgClient={c=>{setSelClient(c);setTab("messages");}}/>}
           {tab==="schedule"  && <Schedule  jobs={jobs} clients={clients} gc={gc} setModal={setModal} doneJob={doneJob}/>}
-          {tab==="billing"   && <Billing   invoices={invoices} payments={payments} clients={clients} gc={gc} setModal={setModal} services={services} generateMonthlyInvoices={generateMonthlyInvoices}/>}
-          {tab==="messages"  && <Messages  clients={clients} sel={selClient} setSel={setSelClient} allMsgs={messages} draft={draft} setDraft={setDraft} sendMsg={sendMsg}/>}
-          {tab==="notes"     && <Notes     notes={notes} gc={gc} setModal={setModal} clients={clients}/>}
+          {tab==="billing"   && <Billing   invoices={invoices} payments={payments} adjustments={adjustments} clients={clients} gc={gc} setModal={setModal} services={services} generateMonthlyInvoices={generateMonthlyInvoices}/>}
+          {tab==="messages"  && <Messages  clients={clients} sel={selClient} setSel={setSelClient} allMsgs={messages} draft={draft} setDraft={setDraft} sendMsg={sendMsg} msgChannel={msgChannel} setMsgChannel={setMsgChannel}/>}
+          {tab==="notes"     && <Notes     notes={notes} gc={gc} setModal={setModal} clients={clients} completeNote={completeNote}/>}
           {tab==="access"    && <Access    clients={clients}/>}
           {tab==="services"  && <Services  services={services} setModal={setModal}/>}
           {tab==="audit"     && <AuditTrail audit={audit} gc={gc} clients={clients}/>}
@@ -351,37 +425,47 @@ export default function App() {
       {modal?.type==="note"         && <NoteModal    data={modal.data} clients={clients}  onSave={saveNote}   onClose={()=>setModal(null)}/>}
       {modal?.type==="payment"      && <PaymentModal data={modal.data} onSave={markPaid}   onClose={()=>setModal(null)}/>}
       {modal?.type==="service"      && <ServiceModal data={modal.data} onSave={saveService} onClose={()=>setModal(null)}/>}
-      {modal?.type==="invoice_view" && <InvoiceViewModal data={modal.data} gc={gc} payments={payments} onClose={()=>setModal(null)} setModal={setModal}/>}
+      {modal?.type==="invoice_view" && <InvoiceViewModal data={modal.data} gc={gc} payments={payments} adjustments={adjustments} onClose={()=>setModal(null)} setModal={setModal}/>}
       {modal?.type==="statement"    && <StatementModal   data={modal.data} clients={clients} gc={gc} invoices={invoices} payments={payments} onClose={()=>setModal(null)}/>}
+      {modal?.type==="override"     && <OverrideModal    data={modal.data} onSave={setOverride} onClose={()=>setModal(null)}/>}
+      {modal?.type==="job_detail"   && <JobDetailModal   data={modal.data} gc={gc} onClose={()=>setModal(null)} doneJob={doneJob} setModal={setModal}/>}
+      {modal?.type==="audit_detail" && <AuditDetailModal data={modal.data} gc={gc} onClose={()=>setModal(null)}/>}
+      {modal?.type==="adjustment"   && <AdjustmentModal  data={modal.data} onSave={postAdjustment} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome,notes,setModal}) {
+function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,setOverride,getPropertyStatus,notes,setModal}) {
   const [propExpanded, setPropExpanded] = useState(false);
   const td=today();
   const todayJobs=jobs.filter(j=>j.date===td&&j.status==="pending");
   const upcoming=jobs.filter(j=>j.date>td&&j.status==="pending").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
   const overdue=invoices.filter(i=>i.status==="overdue");
   const outstanding=invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+calcInvTotal(i),0);
-  const criticalNotes=notes.filter(n=>n.priority==="high"&&!n.auto);
-
-  // Property status with override detection
-  const propStatus = c => {
-    const inSeason = c.seasonStart && c.seasonEnd && today() >= c.seasonStart && today() <= c.seasonEnd;
-    if(c.isHome && inSeason) return "override"; // should be away but marked home
-    if(!c.isHome && !inSeason && c.seasonStart) return "override"; // should be home but marked away
-    return c.isHome ? "home" : "away";
-  };
+  const criticalNotes=notes.filter(n=>n.priority==="high"&&!n.auto&&!n.completed);
 
   const statusColor = s => s==="home"?"bg-emerald-500":s==="away"?"bg-red-500":"bg-amber-400";
-  const statusLabel = s => s==="home"?"Home":s==="away"?"Away":"Override";
+  const statusLabel = s => {
+    if(s==="override-home") return "Override - Home";
+    if(s==="override-away") return "Override - Away";
+    return s==="home"?"Home":"Away";
+  };
+  const statusBadgeClass = s => {
+    if(s==="override-home") return "bg-amber-200 text-amber-800";
+    if(s==="override-away") return "bg-amber-200 text-amber-800";
+    return s==="home"?"bg-emerald-200 text-emerald-800":"bg-red-200 text-red-800";
+  };
+  const statusDot = s => s==="home"?"bg-emerald-500":s==="away"?"bg-red-500":"bg-amber-400";
 
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-slate-900">Good Morning!</h1><p className="text-slate-500 text-sm mt-0.5">Here's what's happening across your properties.</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{greeting()}!</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Here's what's happening across your properties.</p>
+        </div>
+        <span className="text-xs text-slate-400 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm">v{APP_VERSION}</span>
       </div>
 
       {overdue.length>0&&(
@@ -403,13 +487,14 @@ function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome,notes,set
         <button onClick={()=>setPropExpanded(p=>!p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors">
           <div className="flex items-center gap-3">
             <div className="flex gap-1.5">
-              {clients.filter(c=>c.status==="active").map(c=>(
-                <div key={c.id} className={`w-3 h-3 rounded-full ${statusColor(propStatus(c))}`} title={`${c.lastName}: ${statusLabel(propStatus(c))}`}/>
-              ))}
+              {clients.filter(c=>c.status==="active").map(c=>{
+                const st=getPropertyStatus(c);
+                return <div key={c.id} className={`w-3 h-3 rounded-full ${statusDot(st)}`} title={`${c.lastName}: ${statusLabel(st)}`}/>;
+              })}
             </div>
             <span className="text-sm font-semibold text-slate-700">Property Status</span>
             <span className="text-xs text-slate-400">
-              {clients.filter(c=>c.status==="active"&&c.isHome).length} Home · {clients.filter(c=>c.status==="active"&&!c.isHome).length} Away
+              {clients.filter(c=>c.status==="active").length} Properties
             </span>
           </div>
           <ChevronRight size={14} className={`text-slate-400 transition-transform ${propExpanded?"rotate-90":""}`}/>
@@ -419,20 +504,22 @@ function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome,notes,set
           <div className="border-t border-slate-100 p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
               {clients.filter(c=>c.status==="active").map(c=>{
-                const st=propStatus(c);
+                const st=getPropertyStatus(c);
+                const isOverride=st.startsWith("override");
                 const cAlerts=criticalNotes.filter(n=>n.clientId===c.id);
+                const borderColor=st==="home"?"border-emerald-300 bg-emerald-50":isOverride?"border-amber-300 bg-amber-50":"border-red-200 bg-red-50";
                 return (
-                  <div key={c.id} className={`rounded-xl border-2 p-3 ${st==="home"?"border-emerald-300 bg-emerald-50":st==="away"?"border-red-200 bg-red-50":"border-amber-300 bg-amber-50"}`}>
+                  <div key={c.id} className={`rounded-xl border-2 p-3 ${borderColor}`}>
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <div className="font-bold text-slate-800 text-sm">{c.lastName}</div>
                         <div className="text-xs text-slate-500">{c.street}{c.neighborhood?` · ${c.neighborhood}`:""}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${st==="home"?"bg-emerald-200 text-emerald-800":st==="away"?"bg-red-200 text-red-800":"bg-amber-200 text-amber-800"}`}>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusBadgeClass(st)}`}>
                           {statusLabel(st)}
                         </span>
-                        {st==="override"&&<span className="text-[10px] text-amber-600">Override Active</span>}
+                        {isOverride&&c.overrideExpiry&&<span className="text-[10px] text-amber-600">Expires {fmtDate(c.overrideExpiry)}</span>}
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -440,8 +527,8 @@ function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome,notes,set
                         <Thermometer size={10} className="inline mr-1 text-orange-400"/>{c.awaySettings?.thermostat||"—"}°F
                         <Shield size={10} className="inline ml-2 mr-1 text-blue-400"/>{c.awaySettings?.alarmEnabled?"Armed":"Off"}
                       </div>
-                      <button onClick={()=>toggleHome(c.id)} className="text-[10px] font-bold border border-slate-300 bg-white px-2 py-0.5 rounded-lg hover:bg-slate-100 transition-colors">
-                        Toggle
+                      <button onClick={()=>setModal({type:"override",data:c})} className="text-[10px] font-bold border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-100 transition-colors">
+                        {isOverride?"Edit Override":"Set Override"}
                       </button>
                     </div>
                     {cAlerts.length>0&&(
@@ -495,7 +582,7 @@ function Dashboard({clients,jobs,invoices,gc,setTab,doneJob,toggleHome,notes,set
 }
 
 // ── Clients ───────────────────────────────────────────────────────────────────
-function Clients({clients,jobs,invoices,notes,payments,setModal,selClient,setSelClient,setTab,toggleHome,clientTab,setClientTab,selMsgClient}) {
+function Clients({clients,jobs,invoices,notes,payments,setModal,selClient,setSelClient,setTab,setOverride,getPropertyStatus,clientTab,setClientTab,selMsgClient}) {
   const [search,setSearch]=useState("");
   const filtered=clients.filter(c=>{
     const q=search.toLowerCase();
@@ -509,16 +596,24 @@ function Clients({clients,jobs,invoices,notes,payments,setModal,selClient,setSel
     const cJobs=jobs.filter(j=>j.clientId===c.id&&j.status==="complete");
     const cInvoices=invoices.filter(i=>i.clientId===c.id);
     const cNotes=notes.filter(n=>n.clientId===c.id);
+    const st=getPropertyStatus(c);
+    const isOverride=st.startsWith("override");
     return (
       <div>
         <button onClick={()=>setSelClient(null)} className="flex items-center gap-1.5 text-blue-600 text-sm font-medium mb-4 hover:text-blue-700"><ChevronRight size={14} className="rotate-180"/>Back To Clients</button>
         <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
           <div>
-            <div className="flex items-center gap-2 flex-wrap"><h1 className="text-xl font-bold text-slate-900">{clientDisplayName(c)}</h1><Badge type={c.status}/><Badge type={c.isHome?"home":"away"} label={c.isHome?"Home":"Away"}/></div>
+            <div className="flex items-center gap-2 flex-wrap"><h1 className="text-xl font-bold text-slate-900">{clientDisplayName(c)}</h1><Badge type={c.status}/>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${st==="home"?"bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200":isOverride?"bg-amber-50 text-amber-700 ring-1 ring-amber-200":"bg-slate-100 text-slate-500 ring-1 ring-slate-200"}`}>
+                {st==="home"?"Home":st==="override-home"?"Override - Home":st==="override-away"?"Override - Away":"Away"}
+              </span>
+            </div>
             <div className="text-sm text-slate-500 mt-1">Account #{c.acct} · {clientFullAddress(c)}</div>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <button onClick={()=>toggleHome(c.id)} className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${c.isHome?"border-emerald-300 bg-emerald-50 text-emerald-700":"border-slate-200 bg-slate-50 text-slate-600"}`}>Toggle {c.isHome?"Away":"Home"}</button>
+            <button onClick={()=>setModal({type:"override",data:c})} className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${isOverride?"border-amber-300 bg-amber-50 text-amber-700":"border-slate-200 bg-slate-50 text-slate-600"}`}>
+              {isOverride?"Edit Override":"Set Override"}
+            </button>
             <button onClick={()=>selMsgClient(c)} className="border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors">Message</button>
             <button onClick={()=>setModal({type:"client",data:c})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors">Edit Profile</button>
           </div>
@@ -592,17 +687,20 @@ function Clients({clients,jobs,invoices,notes,payments,setModal,selClient,setSel
           <div>
             <div className="flex justify-end mb-3"><button onClick={()=>setModal({type:"note",data:{clientId:c.id}})} className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700"><Plus size={13}/>Add Note</button></div>
             {cNotes.length===0?<Empty msg="No Notes Yet"/>:cNotes.sort((a,b)=>b.date.localeCompare(a.date)).map(n=>(
-              <Card key={n.id} className={`mb-3 ${n.priority==="high"&&!n.auto?"border-red-200 bg-red-50/30":""}`}>
+              <Card key={n.id} className={`mb-3 ${n.priority==="high"&&!n.auto&&!n.completed?"border-red-200 bg-red-50/30":n.completed?"opacity-60":""}`}>
                 <div className="flex justify-between items-start mb-1">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900">{n.title}</span>
+                      <span className={`font-semibold text-slate-900 ${n.completed?"line-through text-slate-400":""}`}>{n.title}</span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${PRIORITY[n.priority]?.badge}`}>{PRIORITY[n.priority]?.icon}{PRIORITY[n.priority]?.label}</span>
                       {n.auto&&<span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">Auto</span>}
+                      {n.completed&&<span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded font-medium">Completed</span>}
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5">{fmtDate(n.date)}</div>
                   </div>
-                  {!n.auto&&<button onClick={()=>setModal({type:"note",data:n})} className="border border-slate-200 text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>}
+                  <div className="flex gap-1">
+                    {!n.auto&&!n.completed&&<button onClick={()=>setModal({type:"note",data:n})} className="border border-slate-200 text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>}
+                  </div>
                 </div>
                 <p className="text-sm text-slate-600 leading-relaxed">{n.text}</p>
                 {n.attachment&&(
@@ -626,7 +724,7 @@ function Clients({clients,jobs,invoices,notes,payments,setModal,selClient,setSel
         <Row key={c.id} onClick={()=>{setSelClient(c);setClientTab("profile");}}>
           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0"><span className="text-blue-700 font-bold text-sm">{c.lastName[0]}{c.firstName[0]}</span></div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-0.5"><span className="font-semibold text-slate-900">{clientDisplayName(c)}</span><Badge type={c.status}/><Badge type={c.isHome?"home":"away"} label={c.isHome?"Home":"Away"}/></div>
+            <div className="flex items-center gap-2 flex-wrap mb-0.5"><span className="font-semibold text-slate-900">{clientDisplayName(c)}</span><Badge type={c.status}/></div>
             <div className="text-xs text-slate-500">{c.street}{c.neighborhood?` · ${c.neighborhood}`:""}, {c.city} · #{c.acct}</div>
             <div className="text-xs text-slate-400 mt-0.5">{c.phone} · Away: {fmtDate(c.seasonStart)}–{fmtDate(c.seasonEnd)}</div>
           </div>
@@ -644,22 +742,35 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
   const [viewMode, setViewMode]= useState("list");
   const [search,   setSearch]  = useState("");
   const [calDate,  setCalDate] = useState(()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};});
+  const [expanded, setExpanded]= useState({});
 
-  const pending=jobs.filter(j=>j.status==="pending");
-  const filtered=pending.filter(j=>{
+  const allPending=jobs.filter(j=>j.status==="pending");
+
+  // Group recurring jobs by title+clientId+assignedTo
+  const groupJobs = (jobList) => {
+    const groups={};
+    jobList.forEach(j=>{
+      const key=j.recurring?`${j.clientId}__${j.title}__${j.assignedTo}`:`solo_${j.id}`;
+      if(!groups[key]) groups[key]={...j,_isGroup:j.recurring,_dates:[j.date],_ids:[j.id]};
+      else { groups[key]._dates.push(j.date); groups[key]._ids.push(j.id); if(j.date<groups[key].date)groups[key].date=j.date; }
+    });
+    return Object.values(groups).sort((a,b)=>a.date.localeCompare(b.date));
+  };
+
+  const filtered=allPending.filter(j=>{
     const q=search.toLowerCase();
     const c=gc(j.clientId);
     return (filter==="all"||j.type===filter)&&(!q||j.title.toLowerCase().includes(q)||c?.lastName?.toLowerCase().includes(q)||c?.acct?.includes(q)||c?.phone?.replace(/\D/g,"").includes(q.replace(/\D/g,"")));
-  }).sort((a,b)=>a.date.localeCompare(b.date));
+  });
+
+  const grouped=groupJobs(filtered);
 
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const calKey=d=>`${calDate.y}-${String(calDate.m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-  const jobsOnDay=d=>pending.filter(j=>j.date===calKey(d));
+  const jobsOnDay=d=>allPending.filter(j=>j.date===calKey(d));
   const daysInMonth=(y,m)=>new Date(y,m+1,0).getDate();
   const firstDay=(y,m)=>new Date(y,m,1).getDay();
-
   const weekDays=Array(7).fill(null).map((_,i)=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+i);return d;});
-
   const typeColor=t=>t==="watching"?"bg-sky-100 text-sky-700":t==="transport"?"bg-violet-100 text-violet-700":"bg-orange-100 text-orange-700";
 
   return (
@@ -683,33 +794,49 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
 
       {viewMode==="list"&&(
         <>
-          {filtered.map(j=>(
-            <Row key={j.id}>
-              <div className="text-center w-14 flex-shrink-0 bg-slate-50 rounded-lg py-2 border border-slate-100">
-                <div className="text-xs font-bold text-blue-600">{j.date.slice(5).replace("-","/")}</div>
-                <div className="text-xs text-slate-400">{j.time}</div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-800">{j.title}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{clientDisplayName(gc(j.clientId))} · {j.assignedTo}</div>
-                {j.transport?.subtype==="airport"&&(
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    {j.transport.dep?.airline&&`✈ ${j.transport.dep.airline} ${j.transport.dep.flightNum} · ${j.transport.dep.airport}`}
-                    {j.transport.dep?.pickupTime&&` · Client Pickup: ${j.transport.dep.pickupTime}`}
-                    {j.transport.tripType==="roundtrip"&&j.transport.arr?.flightNum&&` · Return: ${j.transport.arr.airline} ${j.transport.arr.flightNum}`}
+          {grouped.map((g,idx)=>{
+            const isGroup=g._isGroup&&g._dates&&g._dates.length>1;
+            const isOpen=expanded[g._ids[0]];
+            return (
+              <div key={g._ids[0]}>
+                <Row onClick={()=>setModal({type:"job_detail",data:g})}>
+                  <div className="text-center w-14 flex-shrink-0 bg-slate-50 rounded-lg py-2 border border-slate-100">
+                    <div className="text-xs font-bold text-blue-600">{g.date.slice(5).replace("-","/")}</div>
+                    <div className="text-xs text-slate-400">{g.time}</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-800">{g.title}</span>
+                      {isGroup&&<span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md font-bold">Weekly Recurring · {g._dates.length}x</span>}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">{clientDisplayName(gc(g.clientId))} · {g.assignedTo}</div>
+                    {g.notes&&<div className="text-xs text-slate-400 mt-0.5 truncate">{g.notes}</div>}
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0" onClick={e=>e.stopPropagation()}>
+                    <Badge type={g.type}/>
+                    {isGroup&&(
+                      <button onClick={e=>{e.stopPropagation();setExpanded(p=>({...p,[g._ids[0]]:!p[g._ids[0]]}));}} className="text-xs border border-violet-200 text-violet-700 bg-violet-50 px-2 py-1 rounded-lg hover:bg-violet-100 font-medium flex items-center gap-1">
+                        {isOpen?<ChevronUp size={11}/>:<ChevronDown size={11}/>}Dates
+                      </button>
+                    )}
+                    {!isGroup&&<button onClick={e=>{e.stopPropagation();doneJob(g.id);}} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 font-medium">Done</button>}
+                    <button onClick={e=>{e.stopPropagation();setModal({type:"job",data:g});}} className="border border-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
+                  </div>
+                </Row>
+                {isGroup&&isOpen&&(
+                  <div className="ml-4 mb-2 border-l-2 border-violet-200 pl-4">
+                    {g._dates.sort().map((dt,i)=>(
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                        <div className="text-xs text-slate-600 font-medium">{fmtDate(dt)} · {g.time}</div>
+                        <button onClick={()=>doneJob(g._ids[i])} className="text-[10px] border border-emerald-300 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg hover:bg-emerald-100 font-medium">Done</button>
+                      </div>
+                    ))}
                   </div>
                 )}
-                {j.transport?.subtype==="other"&&<div className="text-xs text-slate-400 mt-0.5">🚗 {j.transport.pickupAddr} → {j.transport.dropAddr}</div>}
-                {j.notes&&<div className="text-xs text-slate-400 mt-0.5">{j.notes}</div>}
               </div>
-              <div className="flex gap-1.5 flex-shrink-0">
-                <Badge type={j.type}/>
-                <button onClick={()=>doneJob(j.id)} className="text-xs border border-emerald-300 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 font-medium">Done</button>
-                <button onClick={()=>setModal({type:"job",data:j})} className="border border-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>
-              </div>
-            </Row>
-          ))}
-          {filtered.length===0&&<Empty msg="No Open Jobs"/>}
+            );
+          })}
+          {grouped.length===0&&<Empty msg="No Open Jobs"/>}
         </>
       )}
 
@@ -718,7 +845,7 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
           <div className="grid grid-cols-7 gap-2">
             {weekDays.map((d,i)=>{
               const dk=d.toISOString().split("T")[0];
-              const dayJobs=pending.filter(j=>j.date===dk);
+              const dayJobs=allPending.filter(j=>j.date===dk);
               const isToday=dk===today();
               return (
                 <div key={i} className="min-w-0">
@@ -729,7 +856,7 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
                   <div className="flex flex-col gap-1">
                     {dayJobs.length===0&&<div className="text-[10px] text-slate-300 text-center py-2">—</div>}
                     {dayJobs.map(j=>(
-                      <div key={j.id} className={`text-[10px] rounded-lg px-1.5 py-1.5 font-medium leading-tight ${typeColor(j.type)}`}>
+                      <div key={j.id} onClick={()=>setModal({type:"job_detail",data:j})} className={`text-[10px] rounded-lg px-1.5 py-1.5 font-medium leading-tight cursor-pointer hover:opacity-80 transition-opacity ${typeColor(j.type)}`}>
                         <div className="font-bold truncate">{j.time}</div>
                         <div className="truncate">{j.title}</div>
                         <div className="truncate text-[9px] opacity-70">{gc(j.clientId)?.lastName}</div>
@@ -760,7 +887,7 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
               return (
                 <div key={d} className={`min-h-[52px] rounded-lg p-1 border ${isToday?"border-blue-400 bg-blue-50":"border-slate-100 bg-white"}`}>
                   <div className={`text-xs font-bold mb-0.5 ${isToday?"text-blue-600":"text-slate-500"}`}>{d}</div>
-                  {dj.slice(0,2).map(j=><div key={j.id} className={`text-[9px] rounded px-1 py-0.5 mb-0.5 truncate font-medium ${typeColor(j.type)}`}>{j.title}</div>)}
+                  {dj.slice(0,2).map(j=><div key={j.id} onClick={()=>setModal({type:"job_detail",data:j})} className={`text-[9px] rounded px-1 py-0.5 mb-0.5 truncate font-medium cursor-pointer hover:opacity-80 ${typeColor(j.type)}`}>{j.title}</div>)}
                   {dj.length>2&&<div className="text-[9px] text-slate-400">+{dj.length-2}</div>}
                 </div>
               );
@@ -773,15 +900,24 @@ function Schedule({jobs,clients,gc,setModal,doneJob}) {
 }
 
 // ── Billing ───────────────────────────────────────────────────────────────────
-function Billing({invoices,payments,clients,gc,setModal,services,generateMonthlyInvoices}) {
+function Billing({invoices,payments,adjustments,clients,gc,setModal,services,generateMonthlyInvoices}) {
   const [filter,setFilter]=useState("all");
   const [search,setSearch]=useState("");
+  const [showLedger,setShowLedger]=useState(false);
+  const [ledgerClient,setLedgerClient]=useState("");
+
   const total=s=>invoices.filter(i=>i.status===s).reduce((a,i)=>a+calcInvTotal(i),0);
   const filtered=invoices.filter(i=>{
     const q=search.toLowerCase();
     const c=gc(i.clientId);
     return (filter==="all"||i.status===filter)&&(!q||clientDisplayName(c).toLowerCase().includes(q)||c?.lastName?.toLowerCase().includes(q)||String(i.id).includes(q)||(i.description||"").toLowerCase().includes(q)||c?.acct?.includes(q)||c?.phone?.replace(/\D/g,"").includes(q.replace(/\D/g,"")));
   });
+
+  // Patient ledger
+  const ledgerInvoices=invoices.filter(i=>!ledgerClient||String(i.clientId)===ledgerClient).sort((a,b)=>a.date.localeCompare(b.date));
+  const ledgerPayments=id=>payments.filter(p=>p.invoiceId===id);
+  const ledgerAdj=id=>(adjustments||[]).filter(a=>a.invoiceId===id);
+
   return (
     <div>
       <SectionHead title="Billing" sub="Invoices, Payments & Statements"
@@ -815,15 +951,97 @@ function Billing({invoices,payments,clients,gc,setModal,services,generateMonthly
         </Row>
       ))}
       {filtered.length===0&&<Empty msg="No Invoices Found"/>}
+
+      {/* Patient Ledger */}
+      <div className="mt-8 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <button onClick={()=>setShowLedger(p=>!p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors">
+          <div className="flex items-center gap-2">
+            <CreditCard size={15} className="text-blue-600"/>
+            <span className="text-sm font-semibold text-slate-700">Patient Ledger</span>
+            <span className="text-xs text-slate-400">Invoices · Payments · Adjustments</span>
+          </div>
+          <ChevronRight size={14} className={`text-slate-400 transition-transform ${showLedger?"rotate-90":""}`}/>
+        </button>
+        {showLedger&&(
+          <div className="border-t border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <select value={ledgerClient} onChange={e=>setLedgerClient(e.target.value)} className="px-3 py-1.5 rounded-lg text-xs bg-white border border-slate-200 text-slate-600 outline-none focus:border-blue-400 shadow-sm">
+                <option value="">All Clients</option>
+                {clients.map(c=><option key={c.id} value={String(c.id)}>{clientDisplayName(c)}</option>)}
+              </select>
+              <button onClick={()=>setModal({type:"adjustment",data:{clientId:ledgerClient?Number(ledgerClient):null}})} className="flex items-center gap-1.5 border border-blue-300 text-blue-700 bg-blue-50 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"><Plus size={11}/>Post Adjustment</button>
+            </div>
+            {ledgerInvoices.length===0?<Empty msg="No Invoices"/>:ledgerInvoices.map(inv=>{
+              const pmts=ledgerPayments(inv.id);
+              const adjs=ledgerAdj(inv.id);
+              const invTotal=calcInvTotal(inv);
+              const totalPaid=pmts.reduce((s,p)=>s+p.amount,0);
+              const totalAdj=adjs.reduce((s,a)=>s+(a.type==="credit"?-a.amount:a.amount),0);
+              const balance=invTotal-totalPaid+totalAdj;
+              return (
+                <div key={inv.id} className="mb-4 border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-800 text-sm">{clientDisplayName(gc(inv.clientId))}</span>
+                        <span className="text-xs text-slate-400">#{inv.id}</span>
+                        <Badge type={inv.status}/>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{inv.description||"Invoice"} · {fmtDate(inv.date)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-slate-800">{fmt$(invTotal)}</div>
+                      <div className={`text-xs font-semibold ${balance<=0?"text-emerald-600":"text-red-500"}`}>Balance: {fmt$(balance)}</div>
+                    </div>
+                  </div>
+                  {(pmts.length>0||adjs.length>0)&&(
+                    <div className="px-4 py-2">
+                      {pmts.map(p=>(
+                        <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                          <div className="flex items-center gap-2 text-xs text-slate-600"><Check size={10} className="text-emerald-500"/>Payment · {fmtDate(p.date)} · {p.method}{p.checkNum?` #${p.checkNum}`:""}</div>
+                          <span className="text-xs font-semibold text-emerald-600">-{fmt$(p.amount)}</span>
+                        </div>
+                      ))}
+                      {adjs.map(a=>(
+                        <div key={a.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                          <div className="flex items-center gap-2 text-xs text-slate-600"><Activity size={10} className={a.type==="credit"?"text-blue-500":"text-orange-500"}/>Adjustment · {fmtDate(a.date)} · {a.reason}</div>
+                          <span className={`text-xs font-semibold ${a.type==="credit"?"text-blue-600":"text-orange-600"}`}>{a.type==="credit"?"-":"+"}${Math.abs(a.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
-function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg}) {
+function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg,msgChannel,setMsgChannel}) {
+  const [contactType,setContactType]=useState("primary"); // primary | secondary
   const msgs=sel?allMsgs.filter(m=>m.clientId===sel.id):[];
   const endRef=useRef(null);
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs.length]);
+
+  const getContactInfo = () => {
+    if(!sel) return {name:"",phone:"",email:""};
+    if(contactType==="secondary"&&sel.secFirstName){
+      return {name:`${sel.secFirstName} ${sel.secLastName}`,phone:sel.phone,email:sel.email2||sel.email};
+    }
+    return {name:`${sel.firstName} ${sel.lastName}`,phone:sel.phone,email:sel.email};
+  };
+
+  const contact=getContactInfo();
+
+  const handleSend = () => {
+    if(!draft.trim()||!sel) return;
+    sendMsg(msgChannel);
+  };
+
   return (
     <div className="flex gap-4 h-[calc(100vh-120px)]">
       <div className="w-52 flex-shrink-0">
@@ -838,16 +1056,50 @@ function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg}) {
       <Card className="flex-1 flex flex-col overflow-hidden min-w-0 !p-4">
         {sel?(
           <>
-            <div className="pb-3 border-b border-slate-100 mb-3 flex justify-between items-center flex-wrap gap-2">
-              <div><div className="font-bold text-slate-900">{clientDisplayName(sel)}</div><div className="text-xs text-slate-500">{sel.phone} · {sel.email}</div></div>
-              <button className="flex items-center gap-1.5 text-xs border border-slate-200 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors opacity-60 cursor-not-allowed"><Mail size={11}/>Email Statement (Soon)</button>
+            <div className="pb-3 border-b border-slate-100 mb-3">
+              <div className="flex justify-between items-start flex-wrap gap-2 mb-2">
+                <div>
+                  <div className="font-bold text-slate-900">{clientDisplayName(sel)}</div>
+                  <div className="text-xs text-slate-500">{sel.phone} · {sel.email}</div>
+                </div>
+              </div>
+              {/* Contact selector */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                  <button onClick={()=>setContactType("primary")} className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${contactType==="primary"?"bg-white text-slate-800 shadow-sm":"text-slate-500"}`}>
+                    {sel.firstName} {sel.lastName}
+                  </button>
+                  {sel.secFirstName&&(
+                    <button onClick={()=>setContactType("secondary")} className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${contactType==="secondary"?"bg-white text-slate-800 shadow-sm":"text-slate-500"}`}>
+                      {sel.secFirstName} {sel.secLastName}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Channel selector */}
+              <div className="flex gap-2 items-center">
+                <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                  <button onClick={()=>setMsgChannel("text")} className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${msgChannel==="text"?"bg-white text-slate-800 shadow-sm":"text-slate-500"}`}>
+                    <Smartphone size={10}/>Text
+                  </button>
+                  <button onClick={()=>setMsgChannel("email")} className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${msgChannel==="email"?"bg-white text-slate-800 shadow-sm":"text-slate-500"}`}>
+                    <Mail size={10}/>Email
+                  </button>
+                </div>
+                <span className="text-xs text-slate-400">
+                  {msgChannel==="text"?`→ ${contact.phone}`:`→ ${contact.email}`}
+                </span>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-3">
               {msgs.length===0&&<Empty msg="No Messages Yet"/>}
               {msgs.map(m=>(
                 <div key={m.id} className={`flex ${m.fromClient?"justify-start":"justify-end"}`}>
                   <div className={`max-w-[75%] px-3.5 py-2.5 text-sm rounded-2xl leading-relaxed ${m.fromClient?"bg-slate-100 text-slate-800 rounded-tl-sm":"bg-blue-600 text-white rounded-tr-sm"}`}>
-                    <div className={`text-[10px] mb-1 ${m.fromClient?"text-slate-400":"text-blue-200"}`}>{m.from} · {m.time}</div>
+                    <div className={`text-[10px] mb-1 flex items-center gap-1 ${m.fromClient?"text-slate-400":"text-blue-200"}`}>
+                      {m.channel==="email"?<Mail size={9}/>:<Smartphone size={9}/>}
+                      {m.from} · {m.time}
+                    </div>
                     {m.text}
                   </div>
                 </div>
@@ -855,8 +1107,10 @@ function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg}) {
               <div ref={endRef}/>
             </div>
             <div className="flex gap-2">
-              <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()} placeholder="Type a message..." className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 outline-none focus:border-blue-400 placeholder-slate-400"/>
-              <button onClick={sendMsg} className="bg-blue-600 text-white px-3.5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"><Send size={15}/></button>
+              <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSend()} placeholder={msgChannel==="email"?"Compose email...":"Type a message..."} className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 outline-none focus:border-blue-400 placeholder-slate-400"/>
+              <button onClick={handleSend} className={`px-3.5 py-2.5 rounded-xl transition-colors shadow-sm flex items-center gap-1.5 text-white ${msgChannel==="email"?"bg-blue-500 hover:bg-blue-600":"bg-blue-600 hover:bg-blue-700"}`}>
+                {msgChannel==="email"?<Mail size={15}/>:<Send size={15}/>}
+              </button>
             </div>
           </>
         ):<Empty msg="Select A Client To View Messages"/>}
@@ -866,17 +1120,19 @@ function Messages({clients,sel,setSel,allMsgs,draft,setDraft,sendMsg}) {
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
-function Notes({notes,gc,setModal,clients}) {
+function Notes({notes,gc,setModal,clients,completeNote}) {
   const [filterClient,  setFilterClient]  = useState("all");
   const [filterPriority,setFilterPriority]= useState("all");
   const [showAuto,      setShowAuto]      = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
   const filtered=notes.filter(n=>{
     const matchC=filterClient==="all"||String(n.clientId)===filterClient;
     const matchP=filterPriority==="all"||n.priority===filterPriority;
     const matchA=showAuto||!n.auto;
-    return matchC&&matchP&&matchA;
+    const matchDone=showCompleted||!n.completed;
+    return matchC&&matchP&&matchA&&matchDone;
   }).sort((a,b)=>{const o={high:0,medium:1,low:2};return (o[a.priority]||1)-(o[b.priority]||1)||(b.date.localeCompare(a.date));});
-  const highCount=notes.filter(n=>n.priority==="high"&&!n.auto).length;
+  const highCount=notes.filter(n=>n.priority==="high"&&!n.auto&&!n.completed).length;
   return (
     <div>
       <SectionHead title="Property Notes" sub="Incidents, Repairs & Observations" onAdd={()=>setModal({type:"note",data:null})} addLabel="Add Note"
@@ -892,19 +1148,24 @@ function Notes({notes,gc,setModal,clients}) {
           </button>
         ))}
         <button onClick={()=>setShowAuto(p=>!p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${showAuto?"bg-slate-600 text-white":"bg-white border border-slate-200 text-slate-500"}`}>{showAuto?"Hide Auto":"Show Auto"}</button>
+        <button onClick={()=>setShowCompleted(p=>!p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${showCompleted?"bg-emerald-600 text-white":"bg-white border border-slate-200 text-slate-500"}`}>{showCompleted?"Hide Completed":"Show Completed"}</button>
       </div>
       {filtered.map(n=>(
-        <Card key={n.id} className={`mb-3 ${n.priority==="high"&&!n.auto?"border-red-200 bg-red-50/30":""}`}>
+        <Card key={n.id} className={`mb-3 ${n.priority==="high"&&!n.auto&&!n.completed?"border-red-200 bg-red-50/30":n.completed?"opacity-60 bg-slate-50":""}`}>
           <div className="flex justify-between items-start mb-2">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-slate-900">{n.title}</span>
+                <span className={`font-semibold text-slate-900 ${n.completed?"line-through text-slate-400":""}`}>{n.title}</span>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${PRIORITY[n.priority]?.badge}`}>{PRIORITY[n.priority]?.icon}{PRIORITY[n.priority]?.label}</span>
                 {n.auto&&<span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">Auto-Log</span>}
+                {n.completed&&<span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded font-medium">✓ Completed</span>}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">{clientDisplayName(gc(n.clientId))} · {fmtDate(n.date)}</div>
             </div>
-            {!n.auto&&<button onClick={()=>setModal({type:"note",data:n})} className="border border-slate-200 text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>}
+            <div className="flex gap-1 flex-shrink-0">
+              {!n.auto&&!n.completed&&<button onClick={()=>completeNote(n.id)} className="border border-emerald-300 text-emerald-700 bg-emerald-50 text-xs px-2 py-1 rounded-lg hover:bg-emerald-100 font-medium flex items-center gap-1"><Check size={10}/>Complete</button>}
+              {!n.auto&&!n.completed&&<button onClick={()=>setModal({type:"note",data:n})} className="border border-slate-200 text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"><Edit2 size={12}/></button>}
+            </div>
           </div>
           <p className="text-sm text-slate-600 leading-relaxed">{n.text}</p>
           {n.attachment&&(
@@ -933,7 +1194,6 @@ function Access({clients}) {
         <Card key={c.id} className="mb-4">
           <div className="flex justify-between items-start mb-3">
             <div><div className="font-bold text-slate-900">{clientDisplayName(c)}</div><div className="text-xs text-slate-400">{clientFullAddress(c)} · #{c.acct}</div></div>
-            <Badge type={c.isHome?"home":"away"} label={c.isHome?"Home":"Away"}/>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
             {codeFields.map(({label,k})=>(
@@ -1014,19 +1274,160 @@ function AuditTrail({audit,gc,clients}) {
         <span className="text-xs text-slate-400 self-center">{filtered.length} records</span>
       </div>
       {filtered.length===0?<Empty msg="No Activity Recorded Yet"/>:filtered.map(a=>(
-        <Row key={a.id}>
+        <Row key={a.id} onClick={()=>{}}>
           <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0"/>
-          <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-slate-800">{a.action}</div>{a.detail&&<div className="text-xs text-slate-500 mt-0.5">{a.detail}</div>}</div>
-          <div className="text-xs text-slate-400 flex-shrink-0 text-right">{a.clientId&&<div className="font-medium text-slate-500">{clientDisplayName(gc(a.clientId))}</div>}<div>{a.date}</div></div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-slate-800">{a.action}</div>
+            {a.detail&&<div className="text-xs text-slate-500 mt-0.5 truncate">{a.detail.slice(0,80)}{a.detail.length>80?"…":""}</div>}
+          </div>
+          <div className="text-xs text-slate-400 flex-shrink-0 text-right">
+            {a.clientId&&<div className="font-medium text-slate-500">{clientDisplayName(gc(a.clientId))}</div>}
+            <div>{a.date}</div>
+          </div>
+          <button onClick={e=>{e.stopPropagation();}} className="text-[10px] border border-slate-200 text-slate-400 px-2 py-1 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors flex-shrink-0 ml-1">Detail</button>
         </Row>
       ))}
     </div>
   );
 }
 
+// ── Override Modal ────────────────────────────────────────────────────────────
+function OverrideModal({data,onSave,onClose}) {
+  const c=data;
+  const [overrideType,setOverrideType]=useState(c.overrideStatus||"home");
+  const [expiry,setExpiry]=useState(c.overrideExpiry||addDays(today(),14));
+  const [enabled,setEnabled]=useState(!!c.overrideStatus);
+
+  const handleSave=()=>{
+    if(enabled){onSave(c.id,overrideType,expiry);}
+    else{onSave(c.id,null,null);}
+    onClose();
+  };
+
+  return (
+    <Modal title={`Property Override — ${c.lastName}`} onClose={onClose} onSave={handleSave} saveLabel="Save Override">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
+        Override temporarily changes the property status, ignoring the seasonal schedule. It automatically expires on the date you set.
+      </div>
+      <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+        <span className="text-sm font-semibold text-slate-700">Enable Override</span>
+        <button onClick={()=>setEnabled(p=>!p)} className={`relative w-12 h-6 rounded-full transition-colors ${enabled?"bg-amber-400":"bg-slate-300"}`}>
+          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled?"translate-x-7":"translate-x-1"}`}/>
+        </button>
+      </div>
+      {enabled&&(
+        <>
+          <FG label="Override Status">
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={()=>setOverrideType("home")} className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${overrideType==="home"?"border-amber-400 bg-amber-50 text-amber-700":"border-slate-200 bg-white text-slate-500 hover:border-amber-200"}`}>
+                Override - Home
+              </button>
+              <button onClick={()=>setOverrideType("away")} className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${overrideType==="away"?"border-amber-400 bg-amber-50 text-amber-700":"border-slate-200 bg-white text-slate-500 hover:border-amber-200"}`}>
+                Override - Away
+              </button>
+            </div>
+          </FG>
+          <FG label="Override Expiry Date">
+            <input className={inputCls} type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} min={today()}/>
+          </FG>
+          <div className="text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+            Override will automatically expire on {fmtDate(expiry)} and the property will return to its scheduled status.
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ── Job Detail Modal ──────────────────────────────────────────────────────────
+function JobDetailModal({data,gc,onClose,doneJob,setModal}) {
+  const j=data;
+  const c=gc(j.clientId);
+  return (
+    <Modal title="Appointment Details" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge type={j.type}/>
+          <Badge type={j.status}/>
+          {j.recurring&&<span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md font-bold">Recurring</span>}
+        </div>
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+          <div className="text-lg font-bold text-slate-900 mb-2">{j.title}</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-xs text-slate-500 block">Date</span><span className="font-semibold">{fmtDate(j.date)}</span></div>
+            <div><span className="text-xs text-slate-500 block">Time</span><span className="font-semibold">{j.time||"—"}</span></div>
+            <div><span className="text-xs text-slate-500 block">Client</span><span className="font-semibold">{clientDisplayName(c)}</span></div>
+            <div><span className="text-xs text-slate-500 block">Assigned To</span><span className="font-semibold">{j.assignedTo}</span></div>
+          </div>
+          {j.notes&&<div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-600">{j.notes}</div>}
+        </div>
+        {j.transport?.subtype==="airport"&&(
+          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+            <div className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-3">Flight Details</div>
+            {j.transport.dep?.airline&&(
+              <div className="mb-2">
+                <div className="text-xs font-semibold text-slate-600 mb-1">Departing</div>
+                <div className="text-sm">{j.transport.dep.airline} · {j.transport.dep.flightNum} · {j.transport.dep.airport}</div>
+                <div className="text-xs text-slate-500">Flight: {j.transport.dep.flightTime} · Pickup: {j.transport.dep.pickupTime}</div>
+                <div className="text-xs text-slate-500">{j.transport.dep.pickupAddr}, {j.transport.dep.pickupCity} {j.transport.dep.pickupState}</div>
+              </div>
+            )}
+            {j.transport.tripType==="roundtrip"&&j.transport.arr?.flightNum&&(
+              <div className="mt-2 pt-2 border-t border-violet-200">
+                <div className="text-xs font-semibold text-slate-600 mb-1">Returning</div>
+                <div className="text-sm">{j.transport.arr.airline} · {j.transport.arr.flightNum} · {j.transport.arr.airport}</div>
+                <div className="text-xs text-slate-500">Arrival: {j.transport.arr.flightTime}</div>
+                <div className="text-xs text-slate-500">{j.transport.arr.dropAddr}, {j.transport.arr.dropCity} {j.transport.arr.dropState}</div>
+              </div>
+            )}
+          </div>
+        )}
+        {j.transport?.subtype==="other"&&(
+          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm">
+            <div className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">Route</div>
+            <div>From: {j.transport.pickupAddr}, {j.transport.pickupCity}</div>
+            <div>To: {j.transport.dropAddr}, {j.transport.dropCity}</div>
+          </div>
+        )}
+        {j.status==="pending"&&(
+          <div className="flex gap-2 pt-2">
+            <button onClick={()=>{doneJob(j.id);onClose();}} className="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"><Check size={14}/>Mark Complete</button>
+            <button onClick={()=>{onClose();setModal({type:"job",data:j});}} className="border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 flex items-center gap-1.5"><Edit2 size={13}/>Edit</button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Audit Detail Modal ────────────────────────────────────────────────────────
+function AuditDetailModal({data,gc,onClose}) {
+  const a=data;
+  return (
+    <Modal title="Audit Entry Detail" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+          <div className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-3">Entry Information</div>
+          <div className="space-y-2 text-sm">
+            <div><span className="text-slate-500">Date / Time:</span> <span className="font-semibold">{a.date}</span></div>
+            <div><span className="text-slate-500">Client:</span> <span className="font-semibold">{a.clientId?clientDisplayName(gc(a.clientId)):"System"}</span></div>
+            <div><span className="text-slate-500">Action:</span> <span className="font-bold text-slate-900">{a.action}</span></div>
+          </div>
+        </div>
+        {a.detail&&(
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <div className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">Full Details</div>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{a.detail}</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ── Client Modal ──────────────────────────────────────────────────────────────
 function ClientModal({data,onSave,onClose}) {
-  const blank={firstName:"",lastName:"",secFirstName:"",secLastName:"",email:"",email2:"",phone:"",street:"",neighborhood:"",city:"",state:"FL",zip:"",seasonStart:"",seasonEnd:"",status:"active",isHome:false,monitoringFee:0,notes:"",specialRequests:"",codes:{garageOpen:"",garageClose:"",alarmOn:"",alarmOff:"",gateOpen:"",gateClose:""},awaySettings:{thermostat:78,alarmEnabled:true,lights:false,otherNotes:""},emergency:{name:"",phone:"",email:"",relationship:"Spouse"}};
+  const blank={firstName:"",lastName:"",secFirstName:"",secLastName:"",email:"",email2:"",phone:"",street:"",neighborhood:"",city:"",state:"FL",zip:"",seasonStart:"",seasonEnd:"",status:"active",isHome:false,overrideStatus:null,overrideExpiry:null,monitoringFee:0,notes:"",specialRequests:"",codes:{garageOpen:"",garageClose:"",alarmOn:"",alarmOff:"",gateOpen:"",gateClose:""},awaySettings:{thermostat:78,alarmEnabled:true,lights:false,otherNotes:""},emergency:{name:"",phone:"",email:"",relationship:"Spouse"}};
   const [f,setF]=useState(data||blank);
   const [zipLoad,setZL]=useState(false);
   const s =(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1049,7 +1450,7 @@ function ClientModal({data,onSave,onClose}) {
       <G3><FG label={zipLoad?"Zip (Loading...)":"Zip Code"}><input className={inputCls} value={f.zip} onChange={e=>handleZip(e.target.value)} maxLength={5} placeholder="33428"/></FG><FG label="City"><input className={inputCls} value={f.city} onChange={e=>s("city",toTitle(e.target.value))}/></FG><FG label="State"><input className={inputCls} value={f.state} onChange={e=>s("state",e.target.value.toUpperCase())} maxLength={2}/></FG></G3>
       <Divider label="Season Away Dates"/>
       <G2><FG label="Season Start"><input className={inputCls} type="date" value={f.seasonStart} onChange={e=>s("seasonStart",e.target.value)}/></FG><FG label="Season End"><input className={inputCls} type="date" value={f.seasonEnd} onChange={e=>s("seasonEnd",e.target.value)}/></FG></G2>
-      <G2><FG label="Monthly Monitoring Fee ($)"><input className={inputCls} type="number" value={f.monitoringFee} onChange={e=>s("monitoringFee",Number(e.target.value))}/></FG><FG label="Currently (Home / Away Override)"><select className={selCls} value={f.isHome?"home":"away"} onChange={e=>s("isHome",e.target.value==="home")}><option value="away">Away</option><option value="home">Home</option></select></FG></G2>
+      <FG label="Monthly Monitoring Fee ($)"><input className={inputCls} type="number" value={f.monitoringFee} onChange={e=>s("monitoringFee",Number(e.target.value))}/></FG>
       <Divider label="Away Desired Settings"/>
       <G3><FG label="Thermostat (°F)"><input className={inputCls} type="number" min={60} max={90} value={f.awaySettings.thermostat} onChange={e=>sa("thermostat",Number(e.target.value))}/></FG><FG label="Alarm"><select className={selCls} value={f.awaySettings.alarmEnabled?"on":"off"} onChange={e=>sa("alarmEnabled",e.target.value==="on")}><option value="on">Enabled / Armed</option><option value="off">Disabled / Off</option></select></FG><FG label="Interior Lights"><select className={selCls} value={f.awaySettings.lights?"timer":"off"} onChange={e=>sa("lights",e.target.value==="timer")}><option value="off">Off</option><option value="timer">On Timer</option></select></FG></G3>
       <FG label="Other Away Instructions"><input className={inputCls} value={f.awaySettings.otherNotes} onChange={e=>sa("otherNotes",e.target.value)} placeholder="Pool pump timer, irrigation schedule..."/></FG>
@@ -1156,15 +1557,15 @@ function JobModal({data,clients,onSave,onClose}) {
 
 // ── Invoice Modal ─────────────────────────────────────────────────────────────
 function InvModal({data,clients,services,onSave,onClose}) {
-  const blank={clientId:clients[0]?.id,description:"Monthly House Service",periodStart:"",periodEnd:"",services:[],supplies:0,discount:0,date:today(),due:"",status:"pending",notes:""};
-  const [f,setF]=useState(()=>{
-    if(data) return data;
-    // Pre-fill monitoring fee from client
-    return blank;
-  });
+  const blank={clientId:clients[0]?.id,description:"Monthly House Service",periodStart:"",periodEnd:"",services:[],supplies:0,discount:0,date:today(),due:addDays(today(),10),status:"pending",notes:""};
+  const [f,setF]=useState(data||blank);
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
 
-  // When client changes, suggest their monitoring fee
+  const handleDateChange = d => {
+    s("date",d);
+    if(!f.id) s("due",addDays(d,10)); // auto-fill due only for new invoices
+  };
+
   const handleClientChange = cid => {
     const c=clients.find(x=>x.id===Number(cid));
     s("clientId",Number(cid));
@@ -1190,8 +1591,8 @@ function InvModal({data,clients,services,onSave,onClose}) {
         <FG label="Period End"><input className={inputCls} type="date" value={f.periodEnd} onChange={e=>s("periodEnd",e.target.value)}/></FG>
       </G2>
       <G2>
-        <FG label="Invoice Date"><input className={inputCls} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></FG>
-        <FG label="Due Date"><input className={inputCls} type="date" value={f.due} onChange={e=>s("due",e.target.value)}/></FG>
+        <FG label="Invoice Date"><input className={inputCls} type="date" value={f.date} onChange={e=>handleDateChange(e.target.value)}/></FG>
+        <FG label="Due Date (auto: 10 days)"><input className={inputCls} type="date" value={f.due} onChange={e=>s("due",e.target.value)}/></FG>
       </G2>
       <Divider label="Services"/>
       <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700 mb-3">Monthly House Service fee pulls automatically from the client's monitoring fee set in their profile.</div>
@@ -1225,7 +1626,7 @@ function InvModal({data,clients,services,onSave,onClose}) {
 
 // ── Note Modal (with file attachment) ─────────────────────────────────────────
 function NoteModal({data,clients,onSave,onClose}) {
-  const [f,setF]=useState(data||{clientId:clients[0]?.id,title:"",text:"",date:today(),priority:"medium",auto:false,attachment:null});
+  const [f,setF]=useState(data||{clientId:clients[0]?.id,title:"",text:"",date:today(),priority:"medium",auto:false,completed:false,attachment:null});
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef(null);
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1276,13 +1677,47 @@ function NoteModal({data,clients,onSave,onClose}) {
 
 // ── Payment Modal ─────────────────────────────────────────────────────────────
 function PaymentModal({data,onSave,onClose}) {
+  const fullAmount=calcInvTotal(data);
   const [method,setMethod]=useState("zelle");
   const [checkNum,setCheckNum]=useState("");
+  const [amount,setAmount]=useState(String(fullAmount.toFixed(2)));
   return (
-    <Modal title="Record Payment" onClose={onClose} onSave={()=>onSave(data.id,method,method==="check"?checkNum:"")} saveLabel="Record Payment">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4"><div className="text-xs text-slate-500 mb-1">Invoice Total</div><div className="text-2xl font-bold text-blue-700">{fmt$(calcInvTotal(data))}</div></div>
+    <Modal title="Record Payment" onClose={onClose} onSave={()=>onSave(data.id,method,method==="check"?checkNum:"",amount)} saveLabel="Record Payment">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+        <div className="text-xs text-slate-500 mb-1">Invoice Total</div>
+        <div className="text-2xl font-bold text-blue-700">{fmt$(fullAmount)}</div>
+      </div>
       <FG label="Payment Method"><select className={selCls} value={method} onChange={e=>setMethod(e.target.value)}><option value="zelle">Zelle</option><option value="venmo">Venmo</option><option value="cash">Cash</option><option value="check">Check</option><option value="credit_card">Credit Card</option></select></FG>
+      <FG label="Payment Amount ($)">
+        <input className={inputCls} type="number" value={amount} onChange={e=>setAmount(e.target.value)} step="0.01" min="0.01"/>
+        {Number(amount)<fullAmount&&<div className="text-xs text-amber-600 mt-1">⚠ Partial payment — balance of {fmt$(fullAmount-Number(amount))} will remain outstanding.</div>}
+      </FG>
       {method==="check"&&<FG label="Check Number"><input className={inputCls} value={checkNum} onChange={e=>setCheckNum(e.target.value)} placeholder="Check #"/></FG>}
+    </Modal>
+  );
+}
+
+// ── Adjustment Modal ──────────────────────────────────────────────────────────
+function AdjustmentModal({data,onSave,onClose}) {
+  const [invoiceId,setInvoiceId]=useState(data?.invoiceId||"");
+  const [clientId,setClientId]=useState(data?.clientId||"");
+  const [amount,setAmount]=useState("");
+  const [reason,setReason]=useState("");
+  const [type,setType]=useState("credit");
+  return (
+    <Modal title="Post Adjustment" onClose={onClose} onSave={()=>{if(!reason||!amount)return;onSave(invoiceId||null,clientId||null,amount,reason,type);}} saveLabel="Post Adjustment">
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-xs text-blue-700">
+        Adjustments modify the running balance on the ledger. A Credit reduces the amount owed; a Debit increases it.
+      </div>
+      <FG label="Invoice # (Optional)"><input className={inputCls} value={invoiceId} onChange={e=>setInvoiceId(e.target.value)} placeholder="Link to invoice ID (leave blank for account-level)"/></FG>
+      <FG label="Adjustment Type">
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={()=>setType("credit")} className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${type==="credit"?"border-blue-400 bg-blue-50 text-blue-700":"border-slate-200 bg-white text-slate-500"}`}>Credit (Reduce Balance)</button>
+          <button onClick={()=>setType("debit")} className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${type==="debit"?"border-orange-400 bg-orange-50 text-orange-700":"border-slate-200 bg-white text-slate-500"}`}>Debit (Increase Balance)</button>
+        </div>
+      </FG>
+      <FG label="Amount ($)"><input className={inputCls} type="number" value={amount} onChange={e=>setAmount(e.target.value)} step="0.01" min="0.01" placeholder="0.00"/></FG>
+      <FG label="Reason / Notes"><input className={inputCls} value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Courtesy discount, billing correction..."/></FG>
     </Modal>
   );
 }
@@ -1300,11 +1735,15 @@ function ServiceModal({data,onSave,onClose}) {
 }
 
 // ── Invoice View Modal ────────────────────────────────────────────────────────
-function InvoiceViewModal({data,gc,payments,onClose,setModal}) {
+function InvoiceViewModal({data,gc,payments,adjustments,onClose,setModal}) {
   const inv=data; const c=gc(inv.clientId);
   const pmt=payments.filter(p=>p.invoiceId===inv.id);
+  const adjs=(adjustments||[]).filter(a=>a.invoiceId===String(inv.id)||a.invoiceId===inv.id);
   const total=calcInvTotal(inv);
   const sub=(inv.services||[]).reduce((s,sv)=>s+(sv.fee*(sv.qty||1)),0);
+  const totalPaid=pmt.reduce((s,p)=>s+p.amount,0);
+  const totalAdj=adjs.reduce((s,a)=>s+(a.type==="credit"?-a.amount:a.amount),0);
+  const balance=total-totalPaid+totalAdj;
 
   const printInvoice=()=>{
     const w=window.open("","_blank");
@@ -1366,7 +1805,6 @@ function InvoiceViewModal({data,gc,payments,onClose,setModal}) {
         <div className="flex items-center gap-2 flex-wrap">
           <Badge type={inv.status}/>
           <button onClick={printInvoice} className="flex items-center gap-1.5 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors"><Printer size={12}/>Print / PDF</button>
-          <button className="flex items-center gap-1.5 border border-slate-200 text-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium cursor-not-allowed opacity-50"><Mail size={12}/>Email (Soon)</button>
         </div>
       </div>
       <table className="w-full text-sm mb-4">
@@ -1380,7 +1818,20 @@ function InvoiceViewModal({data,gc,payments,onClose,setModal}) {
           <tr className="bg-blue-50"><td colSpan={3} className="px-3 py-2 text-right font-bold text-blue-700">Total Due</td><td className="px-3 py-2 text-right font-bold text-blue-700 text-lg">{fmt$(total)}</td></tr>
         </tbody>
       </table>
-      {pmt.length>0&&<div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3">{pmt.map(p=><div key={p.id} className="text-xs text-emerald-700 font-medium"><Check size={11} className="inline mr-1"/>Paid {fmtDate(p.date)} · {p.method}{p.checkNum?` #${p.checkNum}`:""} · {fmt$(p.amount)}</div>)}</div>}
+      {pmt.length>0&&(
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3">
+          {pmt.map(p=><div key={p.id} className="text-xs text-emerald-700 font-medium"><Check size={11} className="inline mr-1"/>Paid {fmtDate(p.date)} · {p.method}{p.checkNum?` #${p.checkNum}`:""} · {fmt$(p.amount)}</div>)}
+        </div>
+      )}
+      {adjs.length>0&&(
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
+          {adjs.map(a=><div key={a.id} className={`text-xs font-medium ${a.type==="credit"?"text-blue-700":"text-orange-700"}`}><Activity size={11} className="inline mr-1"/>Adj {fmtDate(a.date)} · {a.reason} · {a.type==="credit"?"-":"+"}${Math.abs(a.amount).toFixed(2)}</div>)}
+        </div>
+      )}
+      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 mb-3">
+        <span className="text-sm font-semibold text-slate-700">Current Balance</span>
+        <span className={`text-lg font-bold ${balance<=0?"text-emerald-600":"text-red-500"}`}>{fmt$(balance)}</span>
+      </div>
       {inv.status!=="paid"&&<button onClick={()=>{onClose();setModal({type:"payment",data:inv});}} className="w-full bg-emerald-600 text-white font-semibold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors mt-2">Record Payment</button>}
     </Modal>
   );
